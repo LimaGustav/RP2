@@ -40,16 +40,25 @@ colunas = [
 dados = dados[colunas].copy()
 
 # Data
-dados["data_inversa"] = pd.to_datetime(
-    dados["data_inversa"],
+acidentes["data_inversa"] = pd.to_datetime(
+    acidentes["data_inversa"],
+    format="%Y-%m-%d",
     errors="coerce"
 )
 
+# horario
+acidentes["horario"] = (
+    acidentes["horario"]
+    .astype("string")
+    .str.strip()
+)
+
 # Data + horário
-dados["data_hora"] = pd.to_datetime(
-    dados["data_inversa"].dt.strftime("%Y-%m-%d")
+acidentes["data_hora"] = pd.to_datetime(
+    acidentes["data_inversa"].dt.strftime("%Y-%m-%d")
     + " "
-    + dados["horario"],
+    + acidentes["horario"],
+    format="%Y-%m-%d %H:%M:%S",
     errors="coerce"
 )
 
@@ -93,5 +102,13 @@ print(f"Acidentes em SP: {len(dados)}")
 
 print("\nGravidade:")
 print(dados["classificacao_acidente"].value_counts())
+
+print("\nValidação das datas:")
+print("Datas inválidas:", acidentes["data_inversa"].isna().sum())
+print("Data/hora inválida:", acidentes["data_hora"].isna().sum())
+
+print("\nPeríodo:")
+print(acidentes["data_hora"].min())
+print(acidentes["data_hora"].max())
 
 print(f"\nArquivo criado: {SAIDA}")
