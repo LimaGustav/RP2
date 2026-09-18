@@ -76,14 +76,11 @@ dados = dados[
 
 # =========================================================
 # Tratar data
-#
-# A PRF utiliza o formato:
-# YYYY-MM-DD
 # =========================================================
 
 dados["data_inversa"] = pd.to_datetime(
     dados["data_inversa"],
-    format="%Y-%m-%d",
+    format="%d/%m/%Y",
     errors="coerce"
 )
 
@@ -101,6 +98,11 @@ dados["horario"] = (
 horario_delta = pd.to_timedelta(
     dados["horario"],
     errors="coerce"
+)
+
+dados["data_hora"] = (
+    dados["data_inversa"]
+    + horario_delta
 )
 
 
