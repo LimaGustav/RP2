@@ -9,12 +9,11 @@ import pandas as pd
 
 RAIZ = Path(__file__).resolve().parents[1]
 
-ENTRADA = (
+PASTA_PRF = (
     RAIZ
     / "datasets"
     / "raw"
     / "prf"
-    / "datatran2026.csv"
 )
 
 SAIDA = (
@@ -26,13 +25,59 @@ SAIDA = (
 
 
 # =========================================================
-# Carregar base da PRF
+# Localizar bases da PRF
 # =========================================================
 
-dados = pd.read_csv(
-    ENTRADA,
-    sep=";",
-    encoding="latin1"
+arquivos_prf = sorted(
+    PASTA_PRF.glob("datatran*.csv")
+)
+
+if not arquivos_prf:
+    raise FileNotFoundError(
+        f"Nenhum arquivo datatran*.csv encontrado em {PASTA_PRF}"
+    )
+
+print("Arquivos da PRF encontrados:")
+
+for arquivo in arquivos_prf:
+    print(f"- {arquivo.name}")
+
+
+# =========================================================
+# Carregar e unir bases
+# =========================================================
+
+bases = []
+
+for arquivo in arquivos_prf:
+
+    print(
+        f"\nCarregando {arquivo.name}..."
+    )
+
+    dados_ano = pd.read_csv(
+        arquivo,
+        sep=";",
+        encoding="latin1"
+    )
+
+    dados_ano["arquivo_origem"] = (
+        arquivo.name
+    )
+
+    bases.append(
+        dados_ano
+    )
+
+
+dados = pd.concat(
+    bases,
+    ignore_index=True
+)
+
+
+print(
+    f"\nRegistros antes dos filtros: {len(dados)}"
 )
 
 
@@ -66,7 +111,8 @@ colunas = [
     "tracado_via",
     "mortos",
     "feridos_graves",
-    "feridos_leves"
+    "feridos_leves",
+    "arquivo_origem"
 ]
 
 dados = dados[
@@ -76,6 +122,9 @@ dados = dados[
 
 # =========================================================
 # Tratar data
+#
+# Formato utilizado pela PRF:
+# DD/MM/YYYY
 # =========================================================
 
 dados["data_inversa"] = pd.to_datetime(
@@ -95,14 +144,9 @@ dados["horario"] = (
     .str.strip()
 )
 
-horario_delta = pd.to_timedelta(
+dados["horario_delta"] = pd.to_timedelta(
     dados["horario"],
     errors="coerce"
-)
-
-dados["data_hora"] = (
-    dados["data_inversa"]
-    + horario_delta
 )
 
 
@@ -112,8 +156,42 @@ dados["data_hora"] = (
 
 dados["data_hora"] = (
     dados["data_inversa"]
-    + horario_delta
+    + dados["horario_delta"]
 )
+
+
+# =========================================================
+# Criar ano e mês
+# =========================================================
+
+dados["ano"] = (
+    dados["data_inversa"]
+    .dt.year
+)
+
+dados["mes"] = (
+    dados["data_inversa"]
+    .dt.month
+)
+
+
+# =========================================================
+# Manter período comparável entre 2025 e 2026
+#
+# Como a base atual de 2026 termina em maio,
+# utilizamos janeiro a maio dos dois anos.
+# =========================================================
+
+dados = dados[
+    dados["ano"].isin(
+        [2025, 2026]
+    )
+    &
+    dados["mes"].between(
+        1,
+        5
+    )
+].copy()
 
 
 # =========================================================
@@ -164,12 +242,54 @@ dados["gravidade"] = (
 
 
 # =========================================================
+# Ordenar base
+# =========================================================
+
+dados = dados.sort_values(
+    [
+        "data_hora",
+        "id"
+    ]
+).reset_index(
+    drop=True
+)
+
+
+# =========================================================
 # Validações
 # =========================================================
 
+print()
+print("=" * 60)
+print("RESUMO DA BASE PRF")
+print("=" * 60)
+
+
 print(
-    f"Acidentes em SP: {len(dados)}"
+    f"\nAcidentes em SP no período selecionado: {len(dados)}"
 )
+
+
+# ---------------------------------------------------------
+# Quantidade por ano
+# ---------------------------------------------------------
+
+print(
+    "\nAcidentes por ano:"
+)
+
+print(
+    dados[
+        "ano"
+    ]
+    .value_counts()
+    .sort_index()
+)
+
+
+# ---------------------------------------------------------
+# Gravidade geral
+# ---------------------------------------------------------
 
 print(
     "\nGravidade:"
@@ -178,11 +298,34 @@ print(
 print(
     dados[
         "classificacao_acidente"
-    ].value_counts(
+    ]
+    .value_counts(
         dropna=False
     )
 )
 
+
+# ---------------------------------------------------------
+# Gravidade por ano
+# ---------------------------------------------------------
+
+print(
+    "\nGravidade por ano:"
+)
+
+print(
+    pd.crosstab(
+        dados["ano"],
+        dados[
+            "classificacao_acidente"
+        ]
+    )
+)
+
+
+# ---------------------------------------------------------
+# Datas
+# ---------------------------------------------------------
 
 print(
     "\nValidação das datas:"
@@ -190,23 +333,28 @@ print(
 
 print(
     "Datas inválidas:",
-    dados[
-        "data_inversa"
-    ].isna().sum()
+    dados["data_inversa"]
+    .isna()
+    .sum()
 )
 
 print(
     "Horários inválidos:",
-    horario_delta.isna().sum()
+    dados["horario_delta"]
+    .isna()
+    .sum()
 )
 
 print(
     "Data/hora inválida:",
-    dados[
-        "data_hora"
-    ].isna().sum()
+    dados["data_hora"]
+    .isna()
+    .sum()
 )
 
+# ---------------------------------------------------------
+# Coordenadas
+# ---------------------------------------------------------
 
 print(
     "\nValidação das coordenadas:"
@@ -216,16 +364,24 @@ print(
     "Latitudes inválidas:",
     dados[
         "latitude"
-    ].isna().sum()
+    ]
+    .isna()
+    .sum()
 )
 
 print(
     "Longitudes inválidas:",
     dados[
         "longitude"
-    ].isna().sum()
+    ]
+    .isna()
+    .sum()
 )
 
+
+# ---------------------------------------------------------
+# Período
+# ---------------------------------------------------------
 
 print(
     "\nPeríodo:"
@@ -235,16 +391,25 @@ print(
     "Início:",
     dados[
         "data_hora"
-    ].min()
+    ]
+    .min()
 )
 
 print(
     "Fim:",
     dados[
         "data_hora"
-    ].max()
+    ]
+    .max()
 )
 
+# =========================================================
+# Remover colunas auxiliares
+# =========================================================
+
+dados = dados.drop(
+    columns=["horario_delta"]
+)
 
 # =========================================================
 # Salvar base processada
@@ -260,7 +425,6 @@ dados.to_csv(
     index=False,
     encoding="utf-8-sig"
 )
-
 
 print(
     f"\nArquivo criado: {SAIDA}"
