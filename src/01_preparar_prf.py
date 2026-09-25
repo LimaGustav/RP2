@@ -303,40 +303,33 @@ print(
 
 
 # =========================================================
-# Filtrar período comparável
+# Filtrar anos utilizados na análise
 #
-# Janeiro a maio de 2025
-# Janeiro a maio de 2026
+# 2025 completo
+# 2026 com todos os dados disponíveis
 # =========================================================
 
 dados = dados[
     dados["ano"].isin(
         [2025, 2026]
     )
-    & dados["mes"].between(
-        1,
-        5
-    )
 ].copy()
 
 
 print(
-    "\nQuantidade de acidentes após filtro temporal:"
+    "\nQuantidade de acidentes após filtro por ano:"
 )
 
 print(
     len(dados)
 )
 
-
 print(
     "\nAcidentes por ano:"
 )
 
 print(
-    dados[
-        "ano"
-    ]
+    dados["ano"]
     .value_counts()
     .sort_index()
 )
