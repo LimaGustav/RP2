@@ -15,7 +15,7 @@ from statsmodels.miscmodels.ordinal_model import OrderedModel
 warnings.filterwarnings("ignore")
 
 pd.set_option("display.max_columns", None)
-pd.set_option("display.width", 1400)
+pd.set_option("display.width", 1600)
 
 
 # =========================================================
@@ -31,25 +31,35 @@ CAMINHO_BASE = (
     / "base_integrada.csv"
 )
 
-SAIDA_BASE_MODELAGEM = (
+PASTA_SAIDA = (
     RAIZ
     / "datasets"
     / "processed"
+)
+
+SAIDA_BASE_MODELAGEM = (
+    PASTA_SAIDA
     / "base_modelagem.csv"
 )
 
-SAIDA_RESULTADOS = (
-    RAIZ
-    / "datasets"
-    / "processed"
+SAIDA_RESULTADOS_ORDINAL = (
+    PASTA_SAIDA
     / "resultados_regressao_ordinal.csv"
 )
 
 SAIDA_SENSIBILIDADE = (
-    RAIZ
-    / "datasets"
-    / "processed"
+    PASTA_SAIDA
     / "sensibilidade_distancia.csv"
+)
+
+SAIDA_RESULTADOS_MULTINOMIAL = (
+    PASTA_SAIDA
+    / "resultados_regressao_multinomial.csv"
+)
+
+SAIDA_DIAGNOSTICO_AUSENCIA = (
+    PASTA_SAIDA
+    / "diagnostico_ausencia_precipitacao.csv"
 )
 
 
@@ -58,14 +68,26 @@ SAIDA_SENSIBILIDADE = (
 # =========================================================
 
 # Análise principal:
-# 30 km é usado como limite espacial principal.
-# Limites de 40 e 50 km são avaliados depois como sensibilidade.
-LIMITE_DISTANCIA_KM = 30.0
+# - acidentes com precipitação válida;
+# - estação meteorológica a até 30 km;
+# - medição meteorológica a até 60 min.
+#
+# Os limites de 40 e 50 km são usados somente em análise
+# de sensibilidade, não para escolher o resultado pelo p-valor.
 
-# A base atual já apresentou diferenças temporais de no máximo 30 min.
-# Mantemos 60 min apenas como salvaguarda contra futuras integrações
-# com lacunas horárias maiores.
+LIMITE_DISTANCIA_KM = 30.0
 LIMITE_TEMPO_MIN = 60.0
+
+LIMITES_SENSIBILIDADE_KM = [
+    30.0,
+    40.0,
+    50.0,
+]
+
+# Estações com poucos acidentes são agrupadas apenas no
+# diagnóstico do mecanismo de ausência para reduzir instabilidade
+# por categorias extremamente raras.
+MIN_REGISTROS_ESTACAO_MODELO_AUSENCIA = 20
 
 
 # =========================================================
@@ -89,63 +111,6 @@ def formatar_significancia(p_valor):
         return "."
 
     return "ns"
-
-
-def extrair_tabela_modelo(resultado, nome_modelo):
-    parametros = resultado.params
-    erros = resultado.bse
-    p_valores = resultado.pvalues
-    intervalos = resultado.conf_int()
-
-    linhas = []
-
-    for variavel in parametros.index:
-
-        # Ignora os pontos de corte do modelo ordinal
-        if "/" in str(variavel) or str(variavel).startswith("cut"):
-            continue
-
-        coef = parametros[variavel]
-        ep = erros.get(variavel, np.nan)
-        p_val = p_valores.get(variavel, np.nan)
-
-        ic_inf = (
-            intervalos.loc[variavel, 0]
-            if variavel in intervalos.index
-            else np.nan
-        )
-
-        ic_sup = (
-            intervalos.loc[variavel, 1]
-            if variavel in intervalos.index
-            else np.nan
-        )
-
-        linhas.append(
-            {
-                "modelo": nome_modelo,
-                "variavel": variavel,
-                "coeficiente": coef,
-                "erro_padrao": ep,
-                "p_valor": p_val,
-                "sig": formatar_significancia(p_val),
-                "odds_ratio": np.exp(coef),
-                "ic_95_inf": np.exp(ic_inf),
-                "ic_95_sup": np.exp(ic_sup),
-            }
-        )
-
-    return pd.DataFrame(linhas)
-
-
-def calcular_metricas(resultado, nome_modelo, n_obs):
-    return {
-        "modelo": nome_modelo,
-        "n_obs": n_obs,
-        "log_likelihood": resultado.llf,
-        "aic": resultado.aic,
-        "bic": getattr(resultado, "bic", np.nan),
-    }
 
 
 def agrupar_tracado_via(valor):
@@ -174,12 +139,127 @@ def agrupar_tracado_via(valor):
     return "Outros"
 
 
-def preparar_dados_modelagem(dados_entrada, limite_distancia):
+def remover_colunas_sem_variacao(matriz):
+    colunas_validas = [
+        coluna
+        for coluna in matriz.columns
+        if matriz[coluna].nunique(dropna=False) > 1
+    ]
+
+    return matriz[colunas_validas].copy()
+
+
+def extrair_tabela_modelo_ordinal(
+    resultado,
+    nome_modelo
+):
+    parametros = resultado.params
+    erros = resultado.bse
+    p_valores = resultado.pvalues
+    intervalos = resultado.conf_int()
+
+    linhas = []
+
+    for variavel in parametros.index:
+
+        # Pontos de corte do modelo ordinal
+        if "/" in str(variavel) or str(variavel).startswith("cut"):
+            continue
+
+        coef = parametros[variavel]
+        ep = erros.get(
+            variavel,
+            np.nan
+        )
+        p_val = p_valores.get(
+            variavel,
+            np.nan
+        )
+
+        if variavel in intervalos.index:
+            ic_inf = intervalos.loc[
+                variavel,
+                0
+            ]
+            ic_sup = intervalos.loc[
+                variavel,
+                1
+            ]
+        else:
+            ic_inf = np.nan
+            ic_sup = np.nan
+
+        linhas.append(
+            {
+                "modelo": nome_modelo,
+                "variavel": variavel,
+                "coeficiente": coef,
+                "erro_padrao": ep,
+                "p_valor": p_val,
+                "sig": formatar_significancia(
+                    p_val
+                ),
+                "odds_ratio": np.exp(
+                    coef
+                ),
+                "ic_95_inf": np.exp(
+                    ic_inf
+                ),
+                "ic_95_sup": np.exp(
+                    ic_sup
+                ),
+            }
+        )
+
+    return pd.DataFrame(
+        linhas
+    )
+
+
+def calcular_metricas(
+    resultado,
+    nome_modelo,
+    n_obs
+):
+    return {
+        "modelo": nome_modelo,
+        "n_obs": n_obs,
+        "log_likelihood": resultado.llf,
+        "aic": resultado.aic,
+        "bic": getattr(
+            resultado,
+            "bic",
+            np.nan
+        ),
+    }
+
+
+def preparar_dados_modelagem(
+    dados_entrada,
+    limite_distancia
+):
     dados_modelo = dados_entrada[
-        (dados_entrada["status_integracao"] == "integrado")
-        & dados_entrada["precipitacao_mm"].notna()
-        & (dados_entrada["distancia_estacao_km"] <= limite_distancia)
-        & (dados_entrada["diferenca_tempo_min"] <= LIMITE_TEMPO_MIN)
+        (
+            dados_entrada[
+                "status_integracao"
+            ]
+            == "integrado"
+        )
+        & dados_entrada[
+            "precipitacao_mm"
+        ].notna()
+        & (
+            dados_entrada[
+                "distancia_estacao_km"
+            ]
+            <= limite_distancia
+        )
+        & (
+            dados_entrada[
+                "diferenca_tempo_min"
+            ]
+            <= LIMITE_TEMPO_MIN
+        )
     ].copy()
 
     covariaveis_necessarias = [
@@ -191,9 +271,13 @@ def preparar_dados_modelagem(dados_entrada, limite_distancia):
         "mes",
     ]
 
-    dados_modelo = dados_modelo.dropna(
-        subset=covariaveis_necessarias
-    ).copy()
+    dados_modelo = (
+        dados_modelo
+        .dropna(
+            subset=covariaveis_necessarias
+        )
+        .copy()
+    )
 
     mapa_gravidade = {
         "Sem Vítimas": 0,
@@ -201,47 +285,96 @@ def preparar_dados_modelagem(dados_entrada, limite_distancia):
         "Com Vítimas Fatais": 2,
     }
 
-    dados_modelo["gravidade_ordinal"] = (
-        dados_modelo["classificacao_acidente"]
-        .map(mapa_gravidade)
+    dados_modelo[
+        "gravidade_ordinal"
+    ] = (
+        dados_modelo[
+            "classificacao_acidente"
+        ]
+        .map(
+            mapa_gravidade
+        )
     )
 
-    dados_modelo["precipitacao_mm"] = pd.to_numeric(
-        dados_modelo["precipitacao_mm"],
+    dados_modelo[
+        "precipitacao_mm"
+    ] = pd.to_numeric(
+        dados_modelo[
+            "precipitacao_mm"
+        ],
         errors="coerce"
     )
 
-    dados_modelo["chuva_binaria"] = (
-        dados_modelo["precipitacao_mm"] > 0
-    ).astype(int)
+    dados_modelo[
+        "chuva_binaria"
+    ] = (
+        dados_modelo[
+            "precipitacao_mm"
+        ]
+        > 0
+    ).astype(
+        int
+    )
 
-    dados_modelo["fase_dia"] = (
-        dados_modelo["fase_dia"]
-        .astype("string")
+    # -------------------------
+    # Padronização das covariáveis
+    # -------------------------
+
+    dados_modelo[
+        "fase_dia"
+    ] = (
+        dados_modelo[
+            "fase_dia"
+        ]
+        .astype(
+            "string"
+        )
         .str.strip()
         .replace(
             {
-                "Plena noite": "Plena Noite",
-                "plena noite": "Plena Noite",
-                "pleno dia": "Pleno dia",
+                "Plena noite":
+                    "Plena Noite",
+                "plena noite":
+                    "Plena Noite",
+                "pleno dia":
+                    "Pleno dia",
             }
         )
     )
 
-    dados_modelo["tipo_pista"] = (
-        dados_modelo["tipo_pista"]
-        .astype("string")
+    dados_modelo[
+        "tipo_pista"
+    ] = (
+        dados_modelo[
+            "tipo_pista"
+        ]
+        .astype(
+            "string"
+        )
         .str.strip()
     )
 
-    dados_modelo["tracado_via"] = (
-        dados_modelo["tracado_via"]
-        .apply(agrupar_tracado_via)
+    dados_modelo[
+        "tracado_via"
+    ] = (
+        dados_modelo[
+            "tracado_via"
+        ]
+        .apply(
+            agrupar_tracado_via
+        )
     )
 
-    # Referências explícitas
-    dados_modelo["fase_dia"] = pd.Categorical(
-        dados_modelo["fase_dia"],
+    # -------------------------
+    # Categorias de referência
+    # -------------------------
+
+    dados_modelo[
+        "fase_dia"
+    ] = pd.Categorical(
+        dados_modelo[
+            "fase_dia"
+        ],
         categories=[
             "Pleno dia",
             "Plena Noite",
@@ -251,8 +384,12 @@ def preparar_dados_modelagem(dados_entrada, limite_distancia):
         ordered=False
     )
 
-    dados_modelo["tipo_pista"] = pd.Categorical(
-        dados_modelo["tipo_pista"],
+    dados_modelo[
+        "tipo_pista"
+    ] = pd.Categorical(
+        dados_modelo[
+            "tipo_pista"
+        ],
         categories=[
             "Dupla",
             "Simples",
@@ -261,8 +398,12 @@ def preparar_dados_modelagem(dados_entrada, limite_distancia):
         ordered=False
     )
 
-    dados_modelo["tracado_via"] = pd.Categorical(
-        dados_modelo["tracado_via"],
+    dados_modelo[
+        "tracado_via"
+    ] = pd.Categorical(
+        dados_modelo[
+            "tracado_via"
+        ],
         categories=[
             "Reta",
             "Curva",
@@ -272,29 +413,90 @@ def preparar_dados_modelagem(dados_entrada, limite_distancia):
         ordered=False
     )
 
-    # Remove qualquer registro que tenha virado NaN após padronização
-    dados_modelo = dados_modelo.dropna(
-        subset=[
-            "gravidade_ordinal",
-            "precipitacao_mm",
-            "fase_dia",
-            "tipo_pista",
-            "tracado_via",
-            "ano",
-            "mes",
+    # Ano e mês agora são explicitamente categóricos.
+    # Isso evita tratá-los como variáveis numéricas lineares.
+    anos = sorted(
+        dados_modelo[
+            "ano"
         ]
-    ).copy()
+        .dropna()
+        .astype(
+            int
+        )
+        .unique()
+        .tolist()
+    )
 
-    dados_modelo["gravidade_ordinal"] = pd.Categorical(
-        dados_modelo["gravidade_ordinal"].astype(int),
-        categories=[0, 1, 2],
+    meses = list(
+        range(
+            1,
+            13
+        )
+    )
+
+    dados_modelo[
+        "ano"
+    ] = pd.Categorical(
+        dados_modelo[
+            "ano"
+        ].astype(
+            int
+        ),
+        categories=anos,
+        ordered=False
+    )
+
+    dados_modelo[
+        "mes"
+    ] = pd.Categorical(
+        dados_modelo[
+            "mes"
+        ].astype(
+            int
+        ),
+        categories=meses,
+        ordered=False
+    )
+
+    dados_modelo = (
+        dados_modelo
+        .dropna(
+            subset=[
+                "gravidade_ordinal",
+                "precipitacao_mm",
+                "fase_dia",
+                "tipo_pista",
+                "tracado_via",
+                "ano",
+                "mes",
+            ]
+        )
+        .copy()
+    )
+
+    dados_modelo[
+        "gravidade_ordinal"
+    ] = pd.Categorical(
+        dados_modelo[
+            "gravidade_ordinal"
+        ].astype(
+            int
+        ),
+        categories=[
+            0,
+            1,
+            2,
+        ],
         ordered=True
     )
 
     return dados_modelo
 
 
-def criar_matriz_ajustada(dados_modelo, variavel_chuva):
+def criar_matriz_ajustada(
+    dados_modelo,
+    variavel_chuva
+):
     categoricas = [
         "fase_dia",
         "tipo_pista",
@@ -304,20 +506,144 @@ def criar_matriz_ajustada(dados_modelo, variavel_chuva):
     ]
 
     dummies = pd.get_dummies(
-        dados_modelo[categoricas],
+        dados_modelo[
+            categoricas
+        ],
+        columns=categoricas,
         drop_first=True,
         dtype=float
     )
 
     matriz = pd.concat(
         [
-            dados_modelo[[variavel_chuva]].astype(float),
+            dados_modelo[
+                [
+                    variavel_chuva
+                ]
+            ].astype(
+                float
+            ),
             dummies,
         ],
         axis=1
     )
 
+    matriz = remover_colunas_sem_variacao(
+        matriz
+    )
+
     return matriz
+
+
+def ajustar_modelo_ordinal(
+    y,
+    matriz_x,
+    nome_modelo
+):
+    modelo = OrderedModel(
+        y,
+        matriz_x,
+        distr="logit"
+    )
+
+    resultado = modelo.fit(
+        method="bfgs",
+        disp=False,
+        maxiter=1500
+    )
+
+    tabela = extrair_tabela_modelo_ordinal(
+        resultado,
+        nome_modelo
+    )
+
+    return (
+        resultado,
+        tabela
+    )
+
+
+def extrair_resultado_multinomial(
+    resultado,
+    variavel_exposicao,
+    nome_modelo
+):
+    """
+    No MNLogit, como a gravidade é codificada:
+      0 = Sem Vítimas       -> referência
+      1 = Com Vítimas Feridas
+      2 = Com Vítimas Fatais
+
+    As duas colunas de parâmetros correspondem, respectivamente,
+    às categorias 1 e 2 em comparação com a referência 0.
+    """
+
+    resultados = []
+
+    comparacoes = [
+        (
+            0,
+            "Com Vítimas Feridas vs Sem Vítimas"
+        ),
+        (
+            1,
+            "Com Vítimas Fatais vs Sem Vítimas"
+        ),
+    ]
+
+    for coluna_parametro, comparacao in comparacoes:
+        coef = resultado.params.loc[
+            variavel_exposicao,
+            coluna_parametro
+        ]
+
+        ep = resultado.bse.loc[
+            variavel_exposicao,
+            coluna_parametro
+        ]
+
+        p_valor = resultado.pvalues.loc[
+            variavel_exposicao,
+            coluna_parametro
+        ]
+
+        ic_inf = coef - 1.96 * ep
+        ic_sup = coef + 1.96 * ep
+
+        resultados.append(
+            {
+                "modelo": nome_modelo,
+                "comparacao": comparacao,
+                "variavel":
+                    variavel_exposicao,
+                "coeficiente":
+                    coef,
+                "erro_padrao":
+                    ep,
+                "p_valor":
+                    p_valor,
+                "sig":
+                    formatar_significancia(
+                        p_valor
+                    ),
+                "odds_ratio":
+                    np.exp(
+                        coef
+                    ),
+                "ic_95_inf":
+                    np.exp(
+                        ic_inf
+                    ),
+                "ic_95_sup":
+                    np.exp(
+                        ic_sup
+                    ),
+            }
+        )
+
+    return pd.DataFrame(
+        resultados
+    )
 
 
 # =========================================================
@@ -326,18 +652,32 @@ def criar_matriz_ajustada(dados_modelo, variavel_chuva):
 
 if not CAMINHO_BASE.exists():
     raise FileNotFoundError(
-        f"Base integrada não encontrada em: {CAMINHO_BASE}\n"
+        f"Base integrada não encontrada em: "
+        f"{CAMINHO_BASE}\n"
         "Execute as etapas anteriores antes da modelagem."
     )
 
-dados = pd.read_csv(CAMINHO_BASE)
+dados = pd.read_csv(
+    CAMINHO_BASE
+)
 
 print()
-print("=" * 70)
-print("REGRESSÃO LOGÍSTICA ORDINAL")
-print("=" * 70)
+print(
+    "="
+    * 72
+)
+print(
+    "ANÁLISE DA ASSOCIAÇÃO ENTRE PRECIPITAÇÃO E GRAVIDADE"
+)
+print(
+    "="
+    * 72
+)
 
-print(f"\nQuantidade inicial de acidentes: {len(dados)}")
+print(
+    f"\nQuantidade inicial de acidentes: "
+    f"{len(dados):,}"
+)
 
 
 # =========================================================
@@ -345,31 +685,60 @@ print(f"\nQuantidade inicial de acidentes: {len(dados)}")
 # =========================================================
 
 print()
-print("=" * 70)
-print("DIAGNÓSTICO DOS DADOS AUSENTES DE PRECIPITAÇÃO")
-print("=" * 70)
+print(
+    "="
+    * 72
+)
+print(
+    "DIAGNÓSTICO DOS DADOS AUSENTES DE PRECIPITAÇÃO"
+)
+print(
+    "="
+    * 72
+)
 
-dados["precipitacao_ausente"] = (
-    dados["precipitacao_mm"].isna()
-).astype(int)
+dados[
+    "precipitacao_ausente"
+] = (
+    dados[
+        "precipitacao_mm"
+    ]
+    .isna()
+    .astype(
+        int
+    )
+)
 
-total_ausente = int(dados["precipitacao_ausente"].sum())
+total_ausente = int(
+    dados[
+        "precipitacao_ausente"
+    ]
+    .sum()
+)
 
 print(
-    f"\nPrecipitação ausente: {total_ausente} "
-    f"({total_ausente / len(dados) * 100:.2f}%)"
+    f"\nPrecipitação ausente: "
+    f"{total_ausente:,} "
+    f"("
+    f"{total_ausente / len(dados) * 100:.2f}%"
+    f")"
 )
 
 
-def imprimir_ausencia_por(coluna):
+def imprimir_ausencia_por(
+    coluna
+):
     if coluna not in dados.columns:
         return
 
     tabela = (
-        dados.groupby(
+        dados
+        .groupby(
             coluna,
             dropna=False
-        )["precipitacao_ausente"]
+        )[
+            "precipitacao_ausente"
+        ]
         .agg(
             total="size",
             ausentes="sum"
@@ -377,20 +746,30 @@ def imprimir_ausencia_por(coluna):
         .reset_index()
     )
 
-    tabela["percentual_ausente"] = (
-        tabela["ausentes"]
-        / tabela["total"]
+    tabela[
+        "percentual_ausente"
+    ] = (
+        tabela[
+            "ausentes"
+        ]
+        / tabela[
+            "total"
+        ]
         * 100
     )
 
     print()
-    print(f"Ausência por {coluna}:")
+    print(
+        f"Ausência por {coluna}:"
+    )
+
     print(
         tabela.to_string(
             index=False,
             formatters={
                 "percentual_ausente":
-                    lambda x: f"{x:.2f}%"
+                    lambda x:
+                    f"{x:.2f}%"
             }
         )
     )
@@ -402,12 +781,21 @@ for coluna in [
     "classificacao_acidente",
     "condicao_metereologica",
 ]:
-    imprimir_ausencia_por(coluna)
+    imprimir_ausencia_por(
+        coluna
+    )
 
 
+# -------------------------
 # Faixas de distância
-dados["faixa_distancia"] = pd.cut(
-    dados["distancia_estacao_km"],
+# -------------------------
+
+dados[
+    "faixa_distancia"
+] = pd.cut(
+    dados[
+        "distancia_estacao_km"
+    ],
     bins=[
         0,
         10,
@@ -430,16 +818,24 @@ dados["faixa_distancia"] = pd.cut(
     include_lowest=True
 )
 
-imprimir_ausencia_por("faixa_distancia")
+imprimir_ausencia_por(
+    "faixa_distancia"
+)
 
 
-# Estações com maior ausência
+# -------------------------
+# Ausência por estação
+# -------------------------
+
 if "estacao_inmet" in dados.columns:
     tabela_estacoes = (
-        dados.groupby(
+        dados
+        .groupby(
             "estacao_inmet",
             dropna=False
-        )["precipitacao_ausente"]
+        )[
+            "precipitacao_ausente"
+        ]
         .agg(
             total="size",
             ausentes="sum"
@@ -447,49 +843,137 @@ if "estacao_inmet" in dados.columns:
         .reset_index()
     )
 
-    tabela_estacoes["percentual_ausente"] = (
-        tabela_estacoes["ausentes"]
-        / tabela_estacoes["total"]
+    tabela_estacoes[
+        "percentual_ausente"
+    ] = (
+        tabela_estacoes[
+            "ausentes"
+        ]
+        / tabela_estacoes[
+            "total"
+        ]
         * 100
     )
 
-    tabela_estacoes = tabela_estacoes.sort_values(
-        [
-            "percentual_ausente",
-            "ausentes",
-        ],
-        ascending=[
-            False,
-            False,
-        ]
+    tabela_estacoes = (
+        tabela_estacoes
+        .sort_values(
+            [
+                "percentual_ausente",
+                "ausentes",
+            ],
+            ascending=[
+                False,
+                False,
+            ]
+        )
     )
 
     print()
-    print("15 estações com maior percentual de ausência:")
     print(
-        tabela_estacoes.head(15).to_string(
+        "15 estações com maior percentual de ausência:"
+    )
+
+    print(
+        tabela_estacoes
+        .head(
+            15
+        )
+        .to_string(
             index=False,
             formatters={
                 "percentual_ausente":
-                    lambda x: f"{x:.2f}%"
+                    lambda x:
+                    f"{x:.2f}%"
             }
         )
     )
 
 
-# Regressão logística para verificar se a gravidade
-# permanece associada à ausência depois dos ajustes observados.
+# =========================================================
+# 1.1 Modelo da probabilidade de precipitação ausente
+#     incluindo efeito da estação
+# =========================================================
+
 print()
-print("-" * 70)
-print("MODELO DA PROBABILIDADE DE PRECIPITAÇÃO AUSENTE")
-print("-" * 70)
-
-dados_ausencia = dados.copy()
-
-dados_ausencia["condicao_metereologica"] = (
-    dados_ausencia["condicao_metereologica"]
-    .fillna("Ausente")
+print(
+    "-"
+    * 72
 )
+print(
+    "MODELO DA PROBABILIDADE DE PRECIPITAÇÃO AUSENTE"
+)
+print(
+    "-"
+    * 72
+)
+
+dados_ausencia = (
+    dados
+    .copy()
+)
+
+dados_ausencia[
+    "condicao_metereologica"
+] = (
+    dados_ausencia[
+        "condicao_metereologica"
+    ]
+    .fillna(
+        "Ausente"
+    )
+)
+
+if "estacao_inmet" in dados_ausencia.columns:
+    dados_ausencia[
+        "estacao_inmet"
+    ] = (
+        dados_ausencia[
+            "estacao_inmet"
+        ]
+        .fillna(
+            "SEM_ESTACAO"
+        )
+        .astype(
+            str
+        )
+    )
+
+    contagem_estacoes = (
+        dados_ausencia[
+            "estacao_inmet"
+        ]
+        .value_counts()
+    )
+
+    estacoes_raras = (
+        contagem_estacoes[
+            contagem_estacoes
+            < MIN_REGISTROS_ESTACAO_MODELO_AUSENCIA
+        ]
+        .index
+    )
+
+    dados_ausencia[
+        "estacao_modelo_ausencia"
+    ] = (
+        dados_ausencia[
+            "estacao_inmet"
+        ]
+        .where(
+            ~dados_ausencia[
+                "estacao_inmet"
+            ]
+            .isin(
+                estacoes_raras
+            ),
+            "OUTRAS_ESTACOES"
+        )
+    )
+else:
+    dados_ausencia[
+        "estacao_modelo_ausencia"
+    ] = "SEM_ESTACAO"
 
 formula_ausencia = (
     "precipitacao_ausente ~ "
@@ -497,41 +981,80 @@ formula_ausencia = (
     "C(ano) + "
     "C(mes) + "
     "distancia_estacao_km + "
-    "C(condicao_metereologica)"
+    "C(condicao_metereologica) + "
+    "C(estacao_modelo_ausencia)"
+)
+
+print(
+    "\nModelo ajustado por gravidade, ano, mês, "
+    "distância, condição meteorológica da PRF e estação."
 )
 
 try:
-    modelo_ausencia = smf.logit(
-        formula=formula_ausencia,
-        data=dados_ausencia
-    ).fit(
-        disp=False,
-        maxiter=500
+    modelo_ausencia = (
+        smf.glm(
+            formula=formula_ausencia,
+            data=dados_ausencia,
+            family=sm.families.Binomial()
+        )
+        .fit(
+            maxiter=500
+        )
     )
 
     resultado_ausencia = pd.DataFrame(
         {
+            "coeficiente":
+                modelo_ausencia.params,
+            "erro_padrao":
+                modelo_ausencia.bse,
             "odds_ratio":
-                np.exp(modelo_ausencia.params),
+                np.exp(
+                    modelo_ausencia.params
+                ),
             "p_valor":
                 modelo_ausencia.pvalues,
         }
     )
 
-    ic_ausencia = modelo_ausencia.conf_int()
-
-    resultado_ausencia["ic_95_inf"] = (
-        np.exp(ic_ausencia[0])
+    ic_ausencia = (
+        modelo_ausencia
+        .conf_int()
     )
 
-    resultado_ausencia["ic_95_sup"] = (
-        np.exp(ic_ausencia[1])
+    resultado_ausencia[
+        "ic_95_inf"
+    ] = np.exp(
+        ic_ausencia[
+            0
+        ]
+    )
+
+    resultado_ausencia[
+        "ic_95_sup"
+    ] = np.exp(
+        ic_ausencia[
+            1
+        ]
+    )
+
+    resultado_ausencia[
+        "sig"
+    ] = (
+        resultado_ausencia[
+            "p_valor"
+        ]
+        .apply(
+            formatar_significancia
+        )
     )
 
     linhas_gravidade = [
         indice
-        for indice in resultado_ausencia.index
-        if "classificacao_acidente" in indice
+        for indice
+        in resultado_ausencia.index
+        if "classificacao_acidente"
+        in indice
     ]
 
     print(
@@ -546,43 +1069,55 @@ try:
                 "ic_95_inf",
                 "ic_95_sup",
                 "p_valor",
+                "sig",
             ]
-        ].round(4)
+        ]
+        .round(
+            4
+        )
     )
 
     gravidade_associada_ausencia = any(
         resultado_ausencia.loc[
             linhas_gravidade,
             "p_valor"
-        ] < 0.05
+        ]
+        < 0.05
     )
 
     print()
+
     if gravidade_associada_ausencia:
         print(
-            "ATENÇÃO: há evidência de associação entre "
-            "gravidade e ausência de precipitação após os ajustes."
+            "RESULTADO: a gravidade continua associada à "
+            "ausência de precipitação mesmo após o ajuste "
+            "incluindo a estação."
         )
         print(
-            "A análise por casos completos deve ser tratada "
-            "com cautela e acompanhada de análise de sensibilidade."
+            "Casos completos podem ser usados na análise principal, "
+            "mas o possível viés por dados ausentes deve ser tratado "
+            "como limitação e acompanhado de análises de sensibilidade."
         )
     else:
         print(
-            "Não foi detectada associação estatisticamente "
-            "significativa entre gravidade e ausência de "
-            "precipitação após os ajustes utilizados."
+            "RESULTADO: após incluir a estação e os demais ajustes, "
+            "não foi detectada associação estatisticamente "
+            "significativa entre gravidade e ausência de precipitação."
         )
         print(
-            "Isso favorece o uso pragmático de casos completos, "
-            "mas não prova que os dados sejam MCAR/MAR."
+            "Isso torna a análise por casos completos mais defensável, "
+            "embora não prove que os dados sejam MCAR."
         )
 
 except Exception as erro:
     print(
         "\nNão foi possível ajustar o modelo de ausência:"
     )
-    print(erro)
+    print(
+        erro
+    )
+
+    resultado_ausencia = pd.DataFrame()
 
 
 # =========================================================
@@ -590,44 +1125,85 @@ except Exception as erro:
 # =========================================================
 
 print()
-print("=" * 70)
-print("FLUXO DE SELEÇÃO DA ANÁLISE PRINCIPAL")
-print("=" * 70)
-
-total_inicial = len(dados)
-
-mascara_precipitacao = (
-    (dados["status_integracao"] == "integrado")
-    & dados["precipitacao_mm"].notna()
+print(
+    "="
+    * 72
+)
+print(
+    "FLUXO DE SELEÇÃO DA ANÁLISE PRINCIPAL"
+)
+print(
+    "="
+    * 72
 )
 
-dados_etapa1 = dados[
-    mascara_precipitacao
-].copy()
+total_inicial = len(
+    dados
+)
+
+mascara_precipitacao = (
+    (
+        dados[
+            "status_integracao"
+        ]
+        == "integrado"
+    )
+    & dados[
+        "precipitacao_mm"
+    ]
+    .notna()
+)
+
+dados_etapa1 = (
+    dados[
+        mascara_precipitacao
+    ]
+    .copy()
+)
 
 perda_precipitacao = (
     total_inicial
-    - len(dados_etapa1)
+    - len(
+        dados_etapa1
+    )
 )
 
-dados_etapa2 = dados_etapa1[
-    dados_etapa1["distancia_estacao_km"]
-    <= LIMITE_DISTANCIA_KM
-].copy()
+dados_etapa2 = (
+    dados_etapa1[
+        dados_etapa1[
+            "distancia_estacao_km"
+        ]
+        <= LIMITE_DISTANCIA_KM
+    ]
+    .copy()
+)
 
 perda_distancia = (
-    len(dados_etapa1)
-    - len(dados_etapa2)
+    len(
+        dados_etapa1
+    )
+    - len(
+        dados_etapa2
+    )
 )
 
-dados_etapa3 = dados_etapa2[
-    dados_etapa2["diferenca_tempo_min"]
-    <= LIMITE_TEMPO_MIN
-].copy()
+dados_etapa3 = (
+    dados_etapa2[
+        dados_etapa2[
+            "diferenca_tempo_min"
+        ]
+        <= LIMITE_TEMPO_MIN
+    ]
+    .copy()
+)
 
 perda_tempo = (
-    len(dados_etapa2)
-    - len(dados_etapa3)
+    len(
+        dados_etapa2
+    )
+    - len(
+        dados_etapa3
+    )
 )
 
 covariaveis_necessarias = [
@@ -639,56 +1215,94 @@ covariaveis_necessarias = [
     "mes",
 ]
 
-dados_etapa4 = dados_etapa3.dropna(
-    subset=covariaveis_necessarias
-).copy()
+dados_etapa4 = (
+    dados_etapa3
+    .dropna(
+        subset=covariaveis_necessarias
+    )
+    .copy()
+)
 
 perda_covariaveis = (
-    len(dados_etapa3)
-    - len(dados_etapa4)
+    len(
+        dados_etapa3
+    )
+    - len(
+        dados_etapa4
+    )
 )
 
 fluxo_exclusao = pd.DataFrame(
     [
         {
-            "etapa": "Base integrada inicial",
-            "registros_restantes": total_inicial,
-            "excluidos_etapa": 0,
-        },
-        {
-            "etapa": "Sem medição de precipitação",
-            "registros_restantes": len(dados_etapa1),
-            "excluidos_etapa": perda_precipitacao,
+            "etapa":
+                "Base integrada inicial",
+            "registros_restantes":
+                total_inicial,
+            "excluidos_etapa":
+                0,
         },
         {
             "etapa":
-                f"Distância > {LIMITE_DISTANCIA_KM:.0f} km",
-            "registros_restantes": len(dados_etapa2),
-            "excluidos_etapa": perda_distancia,
+                "Sem medição de precipitação",
+            "registros_restantes":
+                len(
+                    dados_etapa1
+                ),
+            "excluidos_etapa":
+                perda_precipitacao,
         },
         {
             "etapa":
-                f"Diferença temporal > {LIMITE_TEMPO_MIN:.0f} min",
-            "registros_restantes": len(dados_etapa3),
-            "excluidos_etapa": perda_tempo,
+                f"Distância > "
+                f"{LIMITE_DISTANCIA_KM:.0f} km",
+            "registros_restantes":
+                len(
+                    dados_etapa2
+                ),
+            "excluidos_etapa":
+                perda_distancia,
         },
         {
-            "etapa": "Ausência nas covariáveis",
-            "registros_restantes": len(dados_etapa4),
-            "excluidos_etapa": perda_covariaveis,
+            "etapa":
+                f"Diferença temporal > "
+                f"{LIMITE_TEMPO_MIN:.0f} min",
+            "registros_restantes":
+                len(
+                    dados_etapa3
+                ),
+            "excluidos_etapa":
+                perda_tempo,
+        },
+        {
+            "etapa":
+                "Ausência nas covariáveis",
+            "registros_restantes":
+                len(
+                    dados_etapa4
+                ),
+            "excluidos_etapa":
+                perda_covariaveis,
         },
     ]
 )
 
-fluxo_exclusao["percentual_amostra_inicial"] = (
-    fluxo_exclusao["registros_restantes"]
+fluxo_exclusao[
+    "percentual_amostra_inicial"
+] = (
+    fluxo_exclusao[
+        "registros_restantes"
+    ]
     / total_inicial
     * 100
-).round(2)
+).round(
+    2
+)
 
 print()
 print(
-    fluxo_exclusao.to_string(
+    fluxo_exclusao
+    .to_string(
         index=False
     )
 )
@@ -698,15 +1312,25 @@ print(
 # 3. Preparar amostra principal
 # =========================================================
 
-dados_modelo = preparar_dados_modelagem(
-    dados,
-    LIMITE_DISTANCIA_KM
+dados_modelo = (
+    preparar_dados_modelagem(
+        dados,
+        LIMITE_DISTANCIA_KM
+    )
 )
 
 print()
-print("=" * 70)
-print("AMOSTRA FINAL DE MODELAGEM")
-print("=" * 70)
+print(
+    "="
+    * 72
+)
+print(
+    "AMOSTRA FINAL DE MODELAGEM"
+)
+print(
+    "="
+    * 72
+)
 
 print(
     f"\nTamanho final da amostra: "
@@ -722,17 +1346,29 @@ resumo_gravidade = (
         "classificacao_acidente"
     ]
     .value_counts()
-    .rename("acidentes")
+    .rename(
+        "acidentes"
+    )
     .to_frame()
 )
 
-resumo_gravidade["percentual"] = (
-    resumo_gravidade["acidentes"]
-    / len(dados_modelo)
+resumo_gravidade[
+    "percentual"
+] = (
+    resumo_gravidade[
+        "acidentes"
+    ]
+    / len(
+        dados_modelo
+    )
     * 100
-).round(2)
+).round(
+    2
+)
 
-print(resumo_gravidade)
+print(
+    resumo_gravidade
+)
 
 print(
     "\nDistribuição por ano e gravidade:"
@@ -740,7 +1376,9 @@ print(
 
 print(
     pd.crosstab(
-        dados_modelo["ano"],
+        dados_modelo[
+            "ano"
+        ],
         dados_modelo[
             "classificacao_acidente"
         ],
@@ -760,20 +1398,34 @@ resumo_chuva = (
     .value_counts()
     .rename(
         {
-            0: "Sem Chuva",
-            1: "Com Chuva",
+            0:
+                "Sem Chuva",
+            1:
+                "Com Chuva",
         }
     )
-    .to_frame("acidentes")
+    .to_frame(
+        "acidentes"
+    )
 )
 
-resumo_chuva["percentual"] = (
-    resumo_chuva["acidentes"]
-    / len(dados_modelo)
+resumo_chuva[
+    "percentual"
+] = (
+    resumo_chuva[
+        "acidentes"
+    ]
+    / len(
+        dados_modelo
+    )
     * 100
-).round(2)
+).round(
+    2
+)
 
-print(resumo_chuva)
+print(
+    resumo_chuva
+)
 
 
 # =========================================================
@@ -782,26 +1434,38 @@ print(resumo_chuva)
 
 matriz_x_m1a = (
     dados_modelo[
-        ["precipitacao_mm"]
+        [
+            "precipitacao_mm"
+        ]
     ]
-    .astype(float)
+    .astype(
+        float
+    )
 )
 
 matriz_x_m1b = (
     dados_modelo[
-        ["chuva_binaria"]
+        [
+            "chuva_binaria"
+        ]
     ]
-    .astype(float)
+    .astype(
+        float
+    )
 )
 
-matriz_x_m2a = criar_matriz_ajustada(
-    dados_modelo,
-    "precipitacao_mm"
+matriz_x_m2a = (
+    criar_matriz_ajustada(
+        dados_modelo,
+        "precipitacao_mm"
+    )
 )
 
-matriz_x_m2b = criar_matriz_ajustada(
-    dados_modelo,
-    "chuva_binaria"
+matriz_x_m2b = (
+    criar_matriz_ajustada(
+        dados_modelo,
+        "chuva_binaria"
+    )
 )
 
 y_ordinal = (
@@ -812,41 +1476,53 @@ y_ordinal = (
 
 
 # =========================================================
-# 5. Modelos ordinais
+# 5. Regressão logística ordinal
 # =========================================================
 
-resultados_tabelas = []
-metricas = []
+print()
+print(
+    "="
+    * 72
+)
+print(
+    "REGRESSÃO LOGÍSTICA ORDINAL"
+)
+print(
+    "="
+    * 72
+)
+
+resultados_ordinais = []
+metricas_ordinais = []
 
 
-def ajustar_modelo_ordinal(
+def executar_e_imprimir_ordinal(
     nome_modelo,
     matriz_x
 ):
     print()
-    print("=" * 70)
-    print(nome_modelo.upper())
-    print("=" * 70)
-
-    modelo = OrderedModel(
-        y_ordinal,
-        matriz_x,
-        distr="logit"
+    print(
+        "-"
+        * 72
+    )
+    print(
+        nome_modelo.upper()
+    )
+    print(
+        "-"
+        * 72
     )
 
-    resultado = modelo.fit(
-        method="bfgs",
-        disp=False,
-        maxiter=1000
+    resultado, tabela = (
+        ajustar_modelo_ordinal(
+            y_ordinal,
+            matriz_x,
+            nome_modelo
+        )
     )
 
     print(
         resultado.summary()
-    )
-
-    tabela = extrair_tabela_modelo(
-        resultado,
-        nome_modelo
     )
 
     print(
@@ -865,44 +1541,55 @@ def ajustar_modelo_ordinal(
                 "ic_95_inf",
                 "ic_95_sup",
             ]
-        ].to_string(
+        ]
+        .to_string(
             index=False
         )
     )
 
-    resultados_tabelas.append(
+    resultados_ordinais.append(
         tabela
     )
 
-    metricas.append(
+    metricas_ordinais.append(
         calcular_metricas(
             resultado,
             nome_modelo,
-            len(dados_modelo)
+            len(
+                dados_modelo
+            )
         )
     )
 
     return resultado
 
 
-resultado_m1a = ajustar_modelo_ordinal(
-    "Modelo 1A - Bruto - Precipitação mm",
-    matriz_x_m1a
+resultado_m1a = (
+    executar_e_imprimir_ordinal(
+        "Modelo 1A - Bruto - Precipitação mm",
+        matriz_x_m1a
+    )
 )
 
-resultado_m1b = ajustar_modelo_ordinal(
-    "Modelo 1B - Bruto - Chuva binária",
-    matriz_x_m1b
+resultado_m1b = (
+    executar_e_imprimir_ordinal(
+        "Modelo 1B - Bruto - Chuva binária",
+        matriz_x_m1b
+    )
 )
 
-resultado_m2a = ajustar_modelo_ordinal(
-    "Modelo 2A - Ajustado - Precipitação mm",
-    matriz_x_m2a
+resultado_m2a = (
+    executar_e_imprimir_ordinal(
+        "Modelo 2A - Ajustado - Precipitação mm",
+        matriz_x_m2a
+    )
 )
 
-resultado_m2b = ajustar_modelo_ordinal(
-    "Modelo 2B - Ajustado - Chuva binária",
-    matriz_x_m2b
+resultado_m2b = (
+    executar_e_imprimir_ordinal(
+        "Modelo 2B - Ajustado - Chuva binária",
+        matriz_x_m2b
+    )
 )
 
 
@@ -911,70 +1598,106 @@ resultado_m2b = ajustar_modelo_ordinal(
 # =========================================================
 
 print()
-print("=" * 70)
-print("DIAGNÓSTICO DA SUPOSIÇÃO DE CHANCES PROPORCIONAIS")
-print("=" * 70)
+print(
+    "="
+    * 72
+)
+print(
+    "DIAGNÓSTICO DA SUPOSIÇÃO DE CHANCES PROPORCIONAIS"
+)
+print(
+    "="
+    * 72
+)
 
-# Este é um diagnóstico baseado na comparação de modelos
-# logísticos binários nos dois cortes cumulativos. Ele não
-# substitui um teste formal como o teste de Brant.
+print(
+    "\nDiagnóstico exploratório: comparação dos coeficientes "
+    "em dois cortes cumulativos. Não substitui um teste formal "
+    "de proportional odds."
+)
 
 gravidade_num = (
     dados_modelo[
         "gravidade_ordinal"
     ]
-    .astype(int)
+    .astype(
+        int
+    )
 )
 
 corte_1 = (
-    gravidade_num >= 1
-).astype(int)
+    gravidade_num
+    >= 1
+).astype(
+    int
+)
 
 corte_2 = (
-    gravidade_num >= 2
-).astype(int)
-
-matriz_x_const = sm.add_constant(
-    matriz_x_m2a
+    gravidade_num
+    >= 2
+).astype(
+    int
 )
 
-logit_corte1 = sm.Logit(
-    corte_1,
-    matriz_x_const
-).fit(
-    disp=False
+matriz_x_const = (
+    sm.add_constant(
+        matriz_x_m2a,
+        has_constant="add"
+    )
 )
 
-logit_corte2 = sm.Logit(
-    corte_2,
-    matriz_x_const
-).fit(
-    disp=False
+logit_corte1 = (
+    sm.Logit(
+        corte_1,
+        matriz_x_const
+    )
+    .fit(
+        disp=False,
+        maxiter=1000
+    )
+)
+
+logit_corte2 = (
+    sm.Logit(
+        corte_2,
+        matriz_x_const
+    )
+    .fit(
+        disp=False,
+        maxiter=1000
+    )
 )
 
 comparacao_cortes = []
 
 for variavel in [
     v
-    for v in logit_corte1.params.index
+    for v
+    in logit_corte1.params.index
     if v != "const"
 ]:
     b1 = (
-        logit_corte1.params.get(
+        logit_corte1
+        .params
+        .get(
             variavel,
             np.nan
         )
     )
 
     b2 = (
-        logit_corte2.params.get(
+        logit_corte2
+        .params
+        .get(
             variavel,
             np.nan
         )
     )
 
     bord = (
-        resultado_m2a.params.get(
+        resultado_m2a
+        .params
+        .get(
             variavel,
             np.nan
         )
@@ -982,26 +1705,46 @@ for variavel in [
 
     comparacao_cortes.append(
         {
-            "variavel": variavel,
-            "beta_corte1": b1,
-            "or_corte1": np.exp(b1),
+            "variavel":
+                variavel,
+            "beta_corte1":
+                b1,
+            "or_corte1":
+                np.exp(
+                    b1
+                ),
             "p_corte1":
-                logit_corte1.pvalues.get(
+                logit_corte1
+                .pvalues
+                .get(
                     variavel,
                     np.nan
                 ),
-            "beta_corte2": b2,
-            "or_corte2": np.exp(b2),
+            "beta_corte2":
+                b2,
+            "or_corte2":
+                np.exp(
+                    b2
+                ),
             "p_corte2":
-                logit_corte2.pvalues.get(
+                logit_corte2
+                .pvalues
+                .get(
                     variavel,
                     np.nan
                 ),
-            "beta_ordinal": bord,
+            "beta_ordinal":
+                bord,
             "or_ordinal":
-                np.exp(bord)
-                if not np.isnan(bord)
-                else np.nan,
+                (
+                    np.exp(
+                        bord
+                    )
+                    if not np.isnan(
+                        bord
+                    )
+                    else np.nan
+                ),
         }
     )
 
@@ -1010,7 +1753,10 @@ df_proporcional = pd.DataFrame(
 )
 
 print(
-    df_proporcional.round(4)
+    df_proporcional
+    .round(
+        4
+    )
     .to_string(
         index=False
     )
@@ -1018,24 +1764,161 @@ print(
 
 
 # =========================================================
-# 7. Sensibilidade ao limite espacial
+# 7. Análise multinomial de sensibilidade
 # =========================================================
 
 print()
-print("=" * 70)
-print("ANÁLISE DE SENSIBILIDADE DO LIMITE ESPACIAL")
-print("=" * 70)
+print(
+    "="
+    * 72
+)
+print(
+    "REGRESSÃO LOGÍSTICA MULTINOMIAL DE SENSIBILIDADE"
+)
+print(
+    "="
+    * 72
+)
+
+print(
+    "\nReferência do desfecho: Sem Vítimas."
+)
+print(
+    "A multinomial é usada como verificação porque não exige "
+    "a hipótese de chances proporcionais da regressão ordinal."
+)
+
+y_multinomial = (
+    dados_modelo[
+        "gravidade_ordinal"
+    ]
+    .astype(
+        int
+    )
+)
+
+resultados_multinomiais = []
+
+for (
+    nome_modelo,
+    variavel_exposicao,
+    matriz_ajustada
+) in [
+    (
+        "Multinomial ajustado - Precipitação mm",
+        "precipitacao_mm",
+        matriz_x_m2a
+    ),
+    (
+        "Multinomial ajustado - Chuva binária",
+        "chuva_binaria",
+        matriz_x_m2b
+    ),
+]:
+    print()
+    print(
+        "-"
+        * 72
+    )
+    print(
+        nome_modelo.upper()
+    )
+    print(
+        "-"
+        * 72
+    )
+
+    x_multinomial = (
+        sm.add_constant(
+            matriz_ajustada,
+            has_constant="add"
+        )
+    )
+
+    modelo_multinomial = (
+        sm.MNLogit(
+            y_multinomial,
+            x_multinomial
+        )
+    )
+
+    resultado_multinomial = (
+        modelo_multinomial
+        .fit(
+            method="newton",
+            disp=False,
+            maxiter=1000
+        )
+    )
+
+    print(
+        resultado_multinomial.summary()
+    )
+
+    tabela_multinomial = (
+        extrair_resultado_multinomial(
+            resultado_multinomial,
+            variavel_exposicao,
+            nome_modelo
+        )
+    )
+
+    print(
+        "\nEfeito da precipitação:"
+    )
+
+    print(
+        tabela_multinomial[
+            [
+                "comparacao",
+                "variavel",
+                "coeficiente",
+                "erro_padrao",
+                "p_valor",
+                "sig",
+                "odds_ratio",
+                "ic_95_inf",
+                "ic_95_sup",
+            ]
+        ]
+        .round(
+            4
+        )
+        .to_string(
+            index=False
+        )
+    )
+
+    resultados_multinomiais.append(
+        tabela_multinomial
+    )
+
+
+# =========================================================
+# 8. Sensibilidade ao limite espacial
+# =========================================================
+
+print()
+print(
+    "="
+    * 72
+)
+print(
+    "ANÁLISE DE SENSIBILIDADE DO LIMITE ESPACIAL"
+)
+print(
+    "="
+    * 72
+)
 
 sensibilidade = []
 
-for limite in [
-    30.0,
-    40.0,
-    50.0,
-]:
-    dados_sensibilidade = preparar_dados_modelagem(
-        dados,
-        limite
+for limite in LIMITES_SENSIBILIDADE_KM:
+    dados_sensibilidade = (
+        preparar_dados_modelagem(
+            dados,
+            limite
+        )
     )
 
     if dados_sensibilidade.empty:
@@ -1047,44 +1930,53 @@ for limite in [
         ]
     )
 
-    x_mm = criar_matriz_ajustada(
-        dados_sensibilidade,
-        "precipitacao_mm"
+    x_mm = (
+        criar_matriz_ajustada(
+            dados_sensibilidade,
+            "precipitacao_mm"
+        )
     )
 
-    x_bin = criar_matriz_ajustada(
-        dados_sensibilidade,
-        "chuva_binaria"
+    x_bin = (
+        criar_matriz_ajustada(
+            dados_sensibilidade,
+            "chuva_binaria"
+        )
     )
 
-    modelo_mm = OrderedModel(
-        y_sensibilidade,
-        x_mm,
-        distr="logit"
-    ).fit(
-        method="bfgs",
-        disp=False,
-        maxiter=1000
+    resultado_mm, _ = (
+        ajustar_modelo_ordinal(
+            y_sensibilidade,
+            x_mm,
+            (
+                "Sensibilidade "
+                f"{limite:.0f} km - mm"
+            )
+        )
     )
 
-    modelo_bin = OrderedModel(
-        y_sensibilidade,
-        x_bin,
-        distr="logit"
-    ).fit(
-        method="bfgs",
-        disp=False,
-        maxiter=1000
+    resultado_bin, _ = (
+        ajustar_modelo_ordinal(
+            y_sensibilidade,
+            x_bin,
+            (
+                "Sensibilidade "
+                f"{limite:.0f} km - binária"
+            )
+        )
     )
 
-    for nome_variavel, modelo in [
+    for (
+        nome_variavel,
+        modelo
+    ) in [
         (
             "precipitacao_mm",
-            modelo_mm
+            resultado_mm
         ),
         (
             "chuva_binaria",
-            modelo_bin
+            resultado_bin
         ),
     ]:
         coef = (
@@ -1100,7 +1992,8 @@ for limite in [
         )
 
         ic = (
-            modelo.conf_int()
+            modelo
+            .conf_int()
             .loc[
                 nome_variavel
             ]
@@ -1108,20 +2001,36 @@ for limite in [
 
         sensibilidade.append(
             {
-                "limite_km": limite,
-                "n": len(
-                    dados_sensibilidade
-                ),
+                "limite_km":
+                    limite,
+                "n":
+                    len(
+                        dados_sensibilidade
+                    ),
                 "exposicao":
                     nome_variavel,
                 "odds_ratio":
-                    np.exp(coef),
+                    np.exp(
+                        coef
+                    ),
                 "ic_95_inf":
-                    np.exp(ic.iloc[0]),
+                    np.exp(
+                        ic.iloc[
+                            0
+                        ]
+                    ),
                 "ic_95_sup":
-                    np.exp(ic.iloc[1]),
+                    np.exp(
+                        ic.iloc[
+                            1
+                        ]
+                    ),
                 "p_valor":
                     p_val,
+                "sig":
+                    formatar_significancia(
+                        p_val
+                    ),
             }
         )
 
@@ -1130,7 +2039,10 @@ df_sensibilidade = pd.DataFrame(
 )
 
 print(
-    df_sensibilidade.round(4)
+    df_sensibilidade
+    .round(
+        4
+    )
     .to_string(
         index=False
     )
@@ -1138,38 +2050,55 @@ print(
 
 
 # =========================================================
-# 8. Comparação de ajuste
+# 9. Comparação de ajuste dos modelos ordinais
 # =========================================================
 
 print()
-print("=" * 70)
-print("COMPARAÇÃO DE AJUSTE DOS MODELOS")
-print("=" * 70)
+print(
+    "="
+    * 72
+)
+print(
+    "COMPARAÇÃO DE AJUSTE DOS MODELOS ORDINAIS"
+)
+print(
+    "="
+    * 72
+)
 
 tabela_metricas = pd.DataFrame(
-    metricas
+    metricas_ordinais
 )
 
 print(
-    tabela_metricas.to_string(
+    tabela_metricas
+    .to_string(
         index=False
     )
 )
 
 
 # =========================================================
-# 9. Salvar resultados
+# 10. Salvar resultados
 # =========================================================
 
-todas_tabelas = pd.concat(
-    resultados_tabelas,
-    ignore_index=True
-)
-
-SAIDA_BASE_MODELAGEM.parent.mkdir(
+PASTA_SAIDA.mkdir(
     parents=True,
     exist_ok=True
 )
+
+todas_tabelas_ordinais = pd.concat(
+    resultados_ordinais,
+    ignore_index=True
+)
+
+if resultados_multinomiais:
+    todas_tabelas_multinomiais = pd.concat(
+        resultados_multinomiais,
+        ignore_index=True
+    )
+else:
+    todas_tabelas_multinomiais = pd.DataFrame()
 
 dados_modelo.to_csv(
     SAIDA_BASE_MODELAGEM,
@@ -1177,8 +2106,8 @@ dados_modelo.to_csv(
     encoding="utf-8-sig"
 )
 
-todas_tabelas.to_csv(
-    SAIDA_RESULTADOS,
+todas_tabelas_ordinais.to_csv(
+    SAIDA_RESULTADOS_ORDINAL,
     index=False,
     encoding="utf-8-sig"
 )
@@ -1189,24 +2118,60 @@ df_sensibilidade.to_csv(
     encoding="utf-8-sig"
 )
 
+todas_tabelas_multinomiais.to_csv(
+    SAIDA_RESULTADOS_MULTINOMIAL,
+    index=False,
+    encoding="utf-8-sig"
+)
+
+if not resultado_ausencia.empty:
+    resultado_ausencia.to_csv(
+        SAIDA_DIAGNOSTICO_AUSENCIA,
+        index=True,
+        encoding="utf-8-sig"
+    )
+
+
+# =========================================================
+# Finalização
+# =========================================================
+
 print()
-print("=" * 70)
-print("FINALIZAÇÃO")
-print("=" * 70)
+print(
+    "="
+    * 72
+)
+print(
+    "FINALIZAÇÃO"
+)
+print(
+    "="
+    * 72
+)
 
 print(
-    f"\nBase de modelagem salva em:\n"
+    f"\nBase de modelagem:\n"
     f"{SAIDA_BASE_MODELAGEM}"
 )
 
 print(
-    f"\nResultados principais salvos em:\n"
-    f"{SAIDA_RESULTADOS}"
+    f"\nResultados ordinais:\n"
+    f"{SAIDA_RESULTADOS_ORDINAL}"
 )
 
 print(
-    f"\nSensibilidade espacial salva em:\n"
+    f"\nResultados multinomiais:\n"
+    f"{SAIDA_RESULTADOS_MULTINOMIAL}"
+)
+
+print(
+    f"\nSensibilidade espacial:\n"
     f"{SAIDA_SENSIBILIDADE}"
+)
+
+print(
+    f"\nDiagnóstico de ausência:\n"
+    f"{SAIDA_DIAGNOSTICO_AUSENCIA}"
 )
 
 print(
