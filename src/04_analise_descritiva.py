@@ -656,6 +656,8 @@ colunas_extremos = [
         "municipio",
         "classificacao_acidente",
         "condicao_metereologica",
+        "estacao_inmet",
+        "data_hora_medicao",
         "precipitacao_mm",
         "distancia_estacao_km",
         "diferenca_tempo_min"
