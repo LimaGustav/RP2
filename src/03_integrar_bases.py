@@ -1,209 +1,96 @@
-from pathlib import Path
-
 import pandas as pd
 
-from utils.integracao import (
-    encontrar_estacao_mais_proxima,
-    encontrar_medicao_mais_proxima
+from config import (
+    ARQUIVO_ACIDENTES,
+    ARQUIVO_INMET,
+    ARQUIVO_BASE_INTEGRADA,
 )
-
+from utils.integracao import integrar_bases
 from utils.validacao import preparar_tipos
 
 
-RAIZ = Path(__file__).resolve().parents[1]
+def carregar_bases():
+    """Carrega as bases preparadas da PRF e do INMET."""
+    for arquivo in [
+        ARQUIVO_ACIDENTES,
+        ARQUIVO_INMET,
+    ]:
+        if not arquivo.exists():
+            raise FileNotFoundError(
+                f"Arquivo não encontrado: {arquivo}"
+            )
 
-CAMINHO_PRF = (
-    RAIZ
-    / "datasets"
-    / "processed"
-    / "acidentes_sp.csv"
-)
-
-CAMINHO_INMET = (
-    RAIZ
-    / "datasets"
-    / "processed"
-    / "inmet_sp.csv"
-)
-
-SAIDA = (
-    RAIZ
-    / "datasets"
-    / "processed"
-    / "base_integrada.csv"
-)
-
-
-acidentes = pd.read_csv(CAMINHO_PRF)
-inmet = pd.read_csv(CAMINHO_INMET)
-
-acidentes, inmet = preparar_tipos(
-    acidentes,
-    inmet
-)
-
-
-estacoes = (
-    inmet[
-        [
-            "codigo_wmo",
-            "estacao",
-            "latitude_estacao",
-            "longitude_estacao"
-        ]
-    ]
-    .drop_duplicates(
-        subset=["codigo_wmo"]
-    )
-    .dropna()
-)
-
-
-medicoes_por_estacao = {
-    codigo: grupo.copy()
-    for codigo, grupo
-    in inmet.groupby("codigo_wmo")
-}
-
-
-resultados = []
-
-
-for numero, (_, acidente) in enumerate(
-    acidentes.iterrows(),
-    start=1
-):
-
-    registro = acidente.to_dict()
-
-    if (
-        pd.isna(acidente["latitude"])
-        or pd.isna(acidente["longitude"])
-        or pd.isna(acidente["data_hora"])
-    ):
-        registro["status_integracao"] = (
-            "dados_acidente_invalidos"
-        )
-
-        resultados.append(registro)
-        continue
-
-
-    estacao, distancia = (
-        encontrar_estacao_mais_proxima(
-            acidente,
-            estacoes
-        )
+    acidentes = pd.read_csv(
+        ARQUIVO_ACIDENTES
     )
 
-    if estacao is None:
-        registro["status_integracao"] = (
-            "estacao_nao_encontrada"
-        )
-
-        resultados.append(registro)
-        continue
-
-
-    codigo = estacao["codigo_wmo"]
-
-    registro["codigo_wmo"] = codigo
-    registro["estacao_inmet"] = (
-        estacao["estacao"]
+    inmet = pd.read_csv(
+        ARQUIVO_INMET
     )
-    registro["distancia_estacao_km"] = (
-        distancia
+
+    return acidentes, inmet
+
+
+def validar_integracao(
+    dados: pd.DataFrame,
+) -> None:
+    """Exibe o resumo da integração."""
+    print("\nStatus da integração:")
+    print(
+        dados["status_integracao"]
+        .value_counts(dropna=False)
+    )
+
+    print("\nDistância até estação:")
+    print(
+        dados["distancia_estacao_km"]
+        .describe()
+    )
+
+    print("\nDiferença temporal:")
+    print(
+        dados["diferenca_tempo_min"]
+        .describe()
     )
 
 
-    medicoes = medicoes_por_estacao.get(
-        codigo
+def salvar_dados(
+    dados: pd.DataFrame,
+) -> None:
+    """Salva a base integrada."""
+    ARQUIVO_BASE_INTEGRADA.parent.mkdir(
+        parents=True,
+        exist_ok=True,
     )
 
-    medicao, diferenca_minutos = (
-        encontrar_medicao_mais_proxima(
-            acidente,
-            medicoes
-        )
+    dados.to_csv(
+        ARQUIVO_BASE_INTEGRADA,
+        index=False,
+        encoding="utf-8-sig",
+    )
+
+    print(
+        f"\nArquivo criado: "
+        f"{ARQUIVO_BASE_INTEGRADA}"
     )
 
 
-    if medicao is None:
-        registro["status_integracao"] = (
-            "sem_medicao_temporal"
-        )
+def main() -> None:
+    acidentes, inmet = carregar_bases()
 
-        resultados.append(registro)
-        continue
-
-
-    registro["data_hora_medicao"] = (
-        medicao["data_hora_sp"]
+    acidentes, inmet = preparar_tipos(
+        acidentes,
+        inmet,
     )
 
-    registro["diferenca_tempo_min"] = (
-        diferenca_minutos
+    base_integrada = integrar_bases(
+        acidentes,
+        inmet,
     )
 
-    registro["precipitacao_mm"] = (
-        medicao["precipitacao_mm"]
-    )
-
-    if pd.isna(
-        medicao["precipitacao_mm"]
-    ):
-        registro["status_integracao"] = (
-            "precipitacao_ausente"
-        )
-    else:
-        registro["status_integracao"] = (
-            "integrado"
-        )
+    validar_integracao(base_integrada)
+    salvar_dados(base_integrada)
 
 
-    resultados.append(registro)
-
-
-    if numero % 100 == 0:
-        print(
-            f"{numero}/{len(acidentes)} "
-            "acidentes processados"
-        )
-
-
-base_integrada = pd.DataFrame(
-    resultados
-)
-
-base_integrada.to_csv(
-    SAIDA,
-    index=False,
-    encoding="utf-8-sig"
-)
-
-
-print("\nStatus da integração:")
-
-print(
-    base_integrada[
-        "status_integracao"
-    ].value_counts(
-        dropna=False
-    )
-)
-
-print("\nDistância até estação:")
-
-print(
-    base_integrada[
-        "distancia_estacao_km"
-    ].describe()
-)
-
-print("\nDiferença temporal:")
-
-print(
-    base_integrada[
-        "diferenca_tempo_min"
-    ].describe()
-)
+if __name__ == "__main__":
+    main()

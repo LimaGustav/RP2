@@ -1,39 +1,38 @@
 import pandas as pd
 
 
-def preparar_tipos(acidentes, inmet):
+def preparar_tipos(
+    acidentes: pd.DataFrame,
+    inmet: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Padroniza os tipos usados na integração."""
+    acidentes = acidentes.copy()
+    inmet = inmet.copy()
 
     acidentes["data_hora"] = pd.to_datetime(
         acidentes["data_hora"],
-        errors="coerce"
+        errors="coerce",
     )
 
-    inmet["data_hora_sp"] = pd.to_datetime(
-        inmet["data_hora_sp"],
-        errors="coerce"
+    inmet["data_hora"] = pd.to_datetime(
+        inmet["data_hora"],
+        errors="coerce",
     )
+
+    for coluna in ["latitude", "longitude"]:
+        acidentes[coluna] = pd.to_numeric(
+            acidentes[coluna],
+            errors="coerce",
+        )
+
+        inmet[coluna] = pd.to_numeric(
+            inmet[coluna],
+            errors="coerce",
+        )
 
     inmet["precipitacao_mm"] = pd.to_numeric(
         inmet["precipitacao_mm"],
-        errors="coerce"
+        errors="coerce",
     )
-
-    for coluna in [
-        "latitude",
-        "longitude"
-    ]:
-        acidentes[coluna] = pd.to_numeric(
-            acidentes[coluna],
-            errors="coerce"
-        )
-
-    for coluna in [
-        "latitude_estacao",
-        "longitude_estacao"
-    ]:
-        inmet[coluna] = pd.to_numeric(
-            inmet[coluna],
-            errors="coerce"
-        )
 
     return acidentes, inmet
