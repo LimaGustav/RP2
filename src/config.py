@@ -1,0 +1,23 @@
+from pathlib import Path
+
+
+RAIZ_PROJETO = Path(__file__).resolve().parents[1]
+
+PASTA_DADOS = RAIZ_PROJETO / "datasets"
+PASTA_DADOS_BRUTOS = PASTA_DADOS / "raw"
+PASTA_DADOS_PROCESSADOS = PASTA_DADOS / "processed"
+
+PASTA_PRF = PASTA_DADOS_BRUTOS / "prf"
+PASTA_INMET = PASTA_DADOS_BRUTOS / "inmet"
+
+ARQUIVOS_PRF = [
+    PASTA_PRF / "datatran2025.csv",
+    PASTA_PRF / "datatran2026.csv",
+]
+
+ARQUIVO_ACIDENTES = PASTA_DADOS_PROCESSADOS / "acidentes_sp.csv"
+ARQUIVO_INMET = PASTA_DADOS_PROCESSADOS / "inmet_sp.csv"
+ARQUIVO_BASE_INTEGRADA = PASTA_DADOS_PROCESSADOS / "base_integrada.csv"
+
+LIMITE_DISTANCIA_KM = 30
+LIMITE_TEMPO_MIN = 60
