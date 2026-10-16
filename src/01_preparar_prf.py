@@ -58,21 +58,19 @@ def converter_datas(datas: pd.Series) -> pd.Series:
     """
     texto = datas.astype("string").str.strip()
 
-    resultado = pd.to_datetime(
+    datas_iso = pd.to_datetime(
         texto,
         format="%Y-%m-%d",
         errors="coerce",
     )
 
-    pendentes = resultado.isna()
-
-    resultado.loc[pendentes] = pd.to_datetime(
-        texto.loc[pendentes],
+    datas_br = pd.to_datetime(
+        texto,
         format="%d/%m/%Y",
         errors="coerce",
     )
 
-    return resultado
+    return datas_iso.fillna(datas_br)
 
 
 def converter_coordenadas(dados: pd.DataFrame) -> None:
@@ -93,8 +91,19 @@ def preparar_dados(dados: pd.DataFrame) -> pd.DataFrame:
         COLUNAS_PRF,
     ].copy()
 
-    dados["ano"] = dados["data_inversa"].dt.year
-    dados["mes"] = dados["data_inversa"].dt.month
+    dados["data_inversa"] = converter_datas(
+        dados["data_inversa"]
+    )
+
+    dados["ano"] = (
+        dados["data_inversa"]
+        .dt.year
+    )
+
+    dados["mes"] = (
+        dados["data_inversa"]
+        .dt.month
+    )
 
     dados["horario"] = (
         dados["horario"]
@@ -107,7 +116,10 @@ def preparar_dados(dados: pd.DataFrame) -> pd.DataFrame:
         errors="coerce",
     )
 
-    dados["data_hora"] = dados["data_inversa"] + horario_delta
+    dados["data_hora"] = (
+        dados["data_inversa"]
+        + horario_delta
+    )
 
     converter_coordenadas(dados)
 
@@ -117,7 +129,6 @@ def preparar_dados(dados: pd.DataFrame) -> pd.DataFrame:
     )
 
     return dados
-
 
 def validar_dados(dados: pd.DataFrame) -> None:
     """Exibe verificações básicas da base processada."""
