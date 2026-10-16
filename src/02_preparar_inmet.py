@@ -1,596 +1,254 @@
-from pathlib import Path
+import unicodedata
 
 import pandas as pd
 
-
-# =========================================================
-# Caminhos
-# =========================================================
-
-RAIZ = Path(__file__).resolve().parents[1]
-
-PASTA_INMET = (
-    RAIZ
-    / "datasets"
-    / "raw"
-    / "inmet"
-)
-
-SAIDA = (
-    RAIZ
-    / "datasets"
-    / "processed"
-    / "inmet_sp.csv"
-)
+from config import ARQUIVO_INMET, PASTA_INMET
 
 
-# =========================================================
-# Ler metadados da estação
-# =========================================================
-
-def ler_metadados(caminho):
-    metadados = {}
-
-    with open(
-        caminho,
-        "r",
-        encoding="latin1"
-    ) as arquivo:
-
-        for _ in range(8):
-            linha = arquivo.readline().strip()
-
-            partes = linha.split(
-                ";",
-                1
-            )
-
-            if len(partes) == 2:
-
-                chave = (
-                    partes[0]
-                    .replace(":", "")
-                    .strip()
-                )
-
-                valor = (
-                    partes[1]
-                    .strip()
-                )
-
-                metadados[chave] = valor
-
-    return metadados
-
-
-# =========================================================
-# Processar um arquivo do INMET
-# =========================================================
-
-def processar_arquivo(caminho):
-
-    metadados = ler_metadados(
-        caminho
+def normalizar_texto(valor: str) -> str:
+    """Remove acentos e padroniza texto para comparação."""
+    return (
+        unicodedata.normalize("NFKD", str(valor))
+        .encode("ascii", "ignore")
+        .decode("ascii")
+        .strip()
+        .upper()
     )
 
-    # -----------------------------------------------------
-    # Segurança extra:
-    # processar somente estações de SP
-    # -----------------------------------------------------
 
-    if metadados.get("UF") != "SP":
+def converter_numero(valor):
+    """Converte números com vírgula decimal para float."""
+    if valor is None:
+        return None
+
+    texto = str(valor).strip().replace(",", ".")
+
+    try:
+        return float(texto)
+    except ValueError:
         return None
 
 
-    # -----------------------------------------------------
-    # Carregar dados horários
-    # -----------------------------------------------------
+def ler_metadados(arquivo) -> dict:
+    """Lê os metadados presentes no início de um arquivo do INMET."""
+    metadados = {}
+
+    with open(arquivo, encoding="latin1") as arquivo_aberto:
+        for _ in range(8):
+            linha = arquivo_aberto.readline()
+
+            chave, separador, valor = linha.partition(";")
+
+            if not separador:
+                continue
+
+            chave = normalizar_texto(chave).rstrip(":")
+            valor = valor.strip().strip(";")
+
+            metadados[chave] = valor
+
+    return {
+        "estacao": metadados.get("ESTACAO"),
+        "codigo_wmo": metadados.get("CODIGO (WMO)"),
+        "latitude": converter_numero(metadados.get("LATITUDE")),
+        "longitude": converter_numero(metadados.get("LONGITUDE")),
+    }
+
+
+def localizar_coluna(dados: pd.DataFrame, trecho: str) -> str:
+    """Localiza uma coluna independentemente de acentos e caixa."""
+    trecho = normalizar_texto(trecho)
+
+    for coluna in dados.columns:
+        if trecho in normalizar_texto(coluna):
+            return coluna
+
+    raise KeyError(f"Coluna não encontrada: {trecho}")
+
+
+def criar_data_hora(dados: pd.DataFrame) -> pd.Series:
+    """Combina data e hora UTC e converte para o horário de São Paulo."""
+    coluna_data = localizar_coluna(dados, "DATA")
+    coluna_hora = localizar_coluna(dados, "HORA UTC")
+
+    datas = (
+        dados[coluna_data]
+        .astype("string")
+        .str.strip()
+    )
+
+    horas = (
+        dados[coluna_hora]
+        .astype("string")
+        .str.extract(r"(\d{1,4})", expand=False)
+        .str.zfill(4)
+    )
+
+    data_hora_utc = pd.to_datetime(
+        datas
+        + " "
+        + horas.str[:2]
+        + ":"
+        + horas.str[2:],
+        errors="coerce",
+        utc=True,
+    )
+
+    return (
+        data_hora_utc
+        .dt.tz_convert("America/Sao_Paulo")
+        .dt.tz_localize(None)
+    )
+
+
+def processar_arquivo(arquivo) -> pd.DataFrame:
+    """Processa um arquivo de uma estação meteorológica do INMET."""
+    metadados = ler_metadados(arquivo)
 
     dados = pd.read_csv(
-        caminho,
+        arquivo,
         sep=";",
-        encoding="latin1",
         skiprows=8,
-        decimal=","
+        encoding="latin1",
+        dtype="string",
     )
 
-
-    coluna_chuva = (
-        "PRECIPITAÇÃO TOTAL, HORÁRIO (mm)"
+    coluna_precipitacao = localizar_coluna(
+        dados,
+        "PRECIPITACAO TOTAL, HORARIO",
     )
 
+    precipitacao = pd.to_numeric(
+        dados[coluna_precipitacao]
+        .str.strip()
+        .str.replace(",", ".", regex=False),
+        errors="coerce",
+    )
 
-    # -----------------------------------------------------
-    # Verificar colunas necessárias
-    # -----------------------------------------------------
-
-    colunas_necessarias = [
-        "Data",
-        "Hora UTC",
-        coluna_chuva
-    ]
-
-    colunas_ausentes = [
-        coluna
-        for coluna in colunas_necessarias
-        if coluna not in dados.columns
-    ]
-
-    if colunas_ausentes:
-        raise ValueError(
-            "Colunas ausentes: "
-            + ", ".join(colunas_ausentes)
-        )
-
-
-    dados = dados[
-        colunas_necessarias
-    ].copy()
-
-
-    dados = dados.rename(
-        columns={
-            "Data": "data",
-            "Hora UTC": "hora_utc",
-            coluna_chuva: "precipitacao_mm"
+    resultado = pd.DataFrame(
+        {
+            "codigo_wmo": metadados["codigo_wmo"],
+            "estacao": metadados["estacao"],
+            "latitude": metadados["latitude"],
+            "longitude": metadados["longitude"],
+            "data_hora": criar_data_hora(dados),
+            "precipitacao_mm": precipitacao,
         }
     )
 
+    resultado["ano"] = resultado["data_hora"].dt.year
+    resultado["mes"] = resultado["data_hora"].dt.month
 
-    # =====================================================
-    # Metadados da estação
-    # =====================================================
+    return resultado
 
-    dados["codigo_wmo"] = (
-        metadados.get(
-            "CODIGO (WMO)"
+
+def localizar_arquivos() -> list:
+    """Localiza os CSVs de São Paulo copiados pelo notebook."""
+    if not PASTA_INMET.exists():
+        raise FileNotFoundError(
+            f"Pasta do INMET não encontrada: {PASTA_INMET}"
         )
+
+    arquivos = sorted(
+        arquivo
+        for arquivo in PASTA_INMET.rglob("*")
+        if arquivo.is_file()
+        and arquivo.suffix.lower() == ".csv"
+        and arquivo.name.upper().startswith("INMET_")
+        and "_SP_" in arquivo.name.upper()
     )
 
-    dados["estacao"] = (
-        metadados.get(
-            "ESTACAO"
+    if not arquivos:
+        raise FileNotFoundError(
+            "Nenhum arquivo do INMET de São Paulo foi encontrado."
         )
+
+    return arquivos
+
+
+def preparar_inmet() -> pd.DataFrame:
+    """Processa e combina todos os arquivos do INMET."""
+    arquivos = localizar_arquivos()
+
+    print(f"Arquivos encontrados: {len(arquivos)}")
+
+    bases = []
+
+    for arquivo in arquivos:
+        try:
+            bases.append(processar_arquivo(arquivo))
+        except Exception as erro:
+            raise RuntimeError(
+                f"Erro ao processar {arquivo.name}"
+            ) from erro
+
+    dados = pd.concat(
+        bases,
+        ignore_index=True,
     )
 
-    dados["uf_estacao"] = (
-        metadados.get(
-            "UF"
-        )
-    )
+    return dados.sort_values(
+        ["codigo_wmo", "data_hora"]
+    ).reset_index(drop=True)
 
 
-    dados["latitude_estacao"] = pd.to_numeric(
-        str(
-            metadados.get(
-                "LATITUDE",
-                ""
-            )
-        ).replace(
-            ",",
-            "."
-        ),
-        errors="coerce"
-    )
+def validar_dados(dados: pd.DataFrame) -> None:
+    """Exibe verificações básicas da base meteorológica."""
+    print(f"Estações: {dados['codigo_wmo'].nunique()}")
+    print(f"Registros: {len(dados):,}")
 
-
-    dados["longitude_estacao"] = pd.to_numeric(
-        str(
-            metadados.get(
-                "LONGITUDE",
-                ""
-            )
-        ).replace(
-            ",",
-            "."
-        ),
-        errors="coerce"
-    )
-
-
-    # =====================================================
-    # Guardar origem do registro
-    # =====================================================
-
-    dados["arquivo_origem"] = (
-        caminho.name
-    )
-
-
-    # =====================================================
-    # Tratar horário UTC
-    #
-    # Exemplo:
-    # 1200 UTC -> 1200
-    # =====================================================
-
-    dados["hora_utc"] = (
-        dados["hora_utc"]
-        .astype("string")
-        .str.extract(
-            r"(\d{4})"
-        )[0]
-    )
-
-
-    # =====================================================
-    # Criar data/hora UTC
-    # =====================================================
-
-    dados["data_hora_utc"] = pd.to_datetime(
-        dados["data"].astype("string")
-        + " "
-        + dados["hora_utc"],
-        format="%Y/%m/%d %H%M",
-        errors="coerce",
-        utc=True
-    )
-
-
-    # =====================================================
-    # Converter UTC para horário de São Paulo
-    # =====================================================
-
-    dados["data_hora_sp"] = (
-        dados["data_hora_utc"]
-        .dt.tz_convert(
-            "America/Sao_Paulo"
-        )
-        .dt.tz_localize(
-            None
-        )
-    )
-
-
-    # =====================================================
-    # Criar ano e mês
-    # =====================================================
-
-    dados["ano"] = (
-        dados["data_hora_sp"]
-        .dt.year
-    )
-
-    dados["mes"] = (
-        dados["data_hora_sp"]
-        .dt.month
-    )
-
-
-    # =====================================================
-    # Tratar precipitação
-    # =====================================================
-
-    dados["precipitacao_mm"] = pd.to_numeric(
-        dados["precipitacao_mm"],
-        errors="coerce"
-    )
-
-
-    return dados
-
-
-# =========================================================
-# Procurar arquivos do INMET recursivamente
-#
-# Estrutura esperada:
-#
-# datasets/raw/inmet/
-# ├── 2025/
-# └── 2026/
-# =========================================================
-
-arquivos = [
-    arquivo
-    for arquivo in PASTA_INMET.rglob("*")
-    if arquivo.is_file()
-    and arquivo.suffix.lower() == ".csv"
-    and arquivo.name.upper().startswith(
-        "INMET_"
-    )
-    and "_SP_" in arquivo.name.upper()
-]
-
-
-arquivos = sorted(
-    arquivos
-)
-
-
-if not arquivos:
-    raise FileNotFoundError(
-        f"Nenhum arquivo do INMET de SP encontrado em {PASTA_INMET}"
-    )
-
-
-print(
-    f"Arquivos de SP encontrados: {len(arquivos)}"
-)
-
-
-# =========================================================
-# Mostrar quantidade encontrada por pasta/ano
-# =========================================================
-
-contagem_por_pasta = {}
-
-for arquivo in arquivos:
-
-    pasta = arquivo.parent.name
-
-    contagem_por_pasta[pasta] = (
-        contagem_por_pasta.get(
-            pasta,
-            0
-        )
-        + 1
-    )
-
-
-print(
-    "\nArquivos encontrados por pasta:"
-)
-
-for pasta, quantidade in sorted(
-    contagem_por_pasta.items()
-):
+    print("\nRegistros por ano:")
     print(
-        f"{pasta}: {quantidade}"
+        dados["ano"]
+        .value_counts(dropna=False)
+        .sort_index()
     )
 
-
-# =========================================================
-# Processar arquivos
-# =========================================================
-
-bases = []
-
-erros = []
-
-
-for caminho in arquivos:
-
-    try:
-
-        dados_estacao = (
-            processar_arquivo(
-                caminho
-            )
-        )
-
-        if dados_estacao is not None:
-
-            bases.append(
-                dados_estacao
-            )
-
-            print(
-                f"OK: "
-                f"{caminho.parent.name}/"
-                f"{caminho.name}"
-            )
-
-    except Exception as erro:
-
-        erros.append(
-            (
-                caminho,
-                str(erro)
-            )
-        )
-
-        print(
-            f"ERRO: "
-            f"{caminho.parent.name}/"
-            f"{caminho.name}"
-        )
-
-        print(
-            erro
-        )
-
-
-# =========================================================
-# Verificar se houve dados processados
-# =========================================================
-
-if not bases:
-    raise ValueError(
-        "Nenhuma estação de SP foi processada."
+    print("\nValidação:")
+    print(
+        "Data/hora inválida:",
+        dados["data_hora"].isna().sum(),
+    )
+    print(
+        "Precipitação ausente:",
+        dados["precipitacao_mm"].isna().sum(),
+    )
+    print(
+        "Latitude ausente:",
+        dados["latitude"].isna().sum(),
+    )
+    print(
+        "Longitude ausente:",
+        dados["longitude"].isna().sum(),
     )
 
-
-# =========================================================
-# Unir todas as estações e anos
-# =========================================================
-
-dados_inmet = pd.concat(
-    bases,
-    ignore_index=True
-)
+    print("\nPeríodo:")
+    print("Início:", dados["data_hora"].min())
+    print("Fim:", dados["data_hora"].max())
 
 
-# =========================================================
-# Ordenar base
-# =========================================================
-
-dados_inmet = dados_inmet.sort_values(
-    [
-        "data_hora_sp",
-        "codigo_wmo"
-    ]
-).reset_index(
-    drop=True
-)
-
-
-# =========================================================
-# Validações
-# =========================================================
-
-print()
-print("=" * 60)
-print("RESUMO DA BASE INMET")
-print("=" * 60)
-
-
-print(
-    "\nEstações únicas:",
-    dados_inmet[
-        "codigo_wmo"
-    ].nunique()
-)
-
-
-print(
-    "\nRegistros:",
-    len(dados_inmet)
-)
-
-
-# ---------------------------------------------------------
-# Registros por ano
-# ---------------------------------------------------------
-
-print(
-    "\nRegistros por ano:"
-)
-
-print(
-    dados_inmet[
-        "ano"
-    ]
-    .value_counts()
-    .sort_index()
-)
-
-
-# ---------------------------------------------------------
-# Estações por ano
-# ---------------------------------------------------------
-
-print(
-    "\nEstações por ano:"
-)
-
-print(
-    dados_inmet.groupby(
-        "ano"
-    )[
-        "codigo_wmo"
-    ].nunique()
-)
-
-
-# ---------------------------------------------------------
-# Precipitação ausente
-# ---------------------------------------------------------
-
-print(
-    "\nPrecipitação ausente por ano:"
-)
-
-print(
-    dados_inmet.groupby(
-        "ano"
-    )[
-        "precipitacao_mm"
-    ]
-    .apply(
-        lambda coluna:
-        coluna.isna().sum()
+def salvar_dados(dados: pd.DataFrame) -> None:
+    """Salva a base consolidada do INMET."""
+    ARQUIVO_INMET.parent.mkdir(
+        parents=True,
+        exist_ok=True,
     )
-)
+
+    dados.to_csv(
+        ARQUIVO_INMET,
+        index=False,
+        encoding="utf-8-sig",
+    )
+
+    print(f"\nArquivo criado: {ARQUIVO_INMET}")
 
 
-# ---------------------------------------------------------
-# Datas inválidas
-# ---------------------------------------------------------
+def main() -> None:
+    dados = preparar_inmet()
 
-print(
-    "\nData/hora inválida:",
-    dados_inmet[
-        "data_hora_sp"
-    ]
-    .isna()
-    .sum()
-)
+    validar_dados(dados)
+    salvar_dados(dados)
 
 
-# ---------------------------------------------------------
-# Coordenadas inválidas
-# ---------------------------------------------------------
-
-print(
-    "\nLatitude da estação inválida:",
-    dados_inmet[
-        "latitude_estacao"
-    ]
-    .isna()
-    .sum()
-)
-
-print(
-    "Longitude da estação inválida:",
-    dados_inmet[
-        "longitude_estacao"
-    ]
-    .isna()
-    .sum()
-)
-
-
-# ---------------------------------------------------------
-# Período
-# ---------------------------------------------------------
-
-print(
-    "\nPeríodo:"
-)
-
-print(
-    "Início:",
-    dados_inmet[
-        "data_hora_sp"
-    ]
-    .min()
-)
-
-print(
-    "Fim:",
-    dados_inmet[
-        "data_hora_sp"
-    ]
-    .max()
-)
-
-
-# ---------------------------------------------------------
-# Erros
-# ---------------------------------------------------------
-
-print(
-    "\nArquivos com erro:",
-    len(erros)
-)
-
-
-# =========================================================
-# Salvar base processada
-# =========================================================
-
-SAIDA.parent.mkdir(
-    parents=True,
-    exist_ok=True
-)
-
-dados_inmet.to_csv(
-    SAIDA,
-    index=False,
-    encoding="utf-8-sig"
-)
-
-
-print(
-    f"\nArquivo criado: {SAIDA}"
-)
+if __name__ == "__main__":
+    main()
