@@ -93,7 +93,8 @@ def preparar_dados(dados: pd.DataFrame) -> pd.DataFrame:
         COLUNAS_PRF,
     ].copy()
 
-    dados["data_inversa"] = converter_datas(dados["data_inversa"])
+    dados["ano"] = dados["data_inversa"].dt.year
+    dados["mes"] = dados["data_inversa"].dt.month
 
     dados["horario"] = (
         dados["horario"]
