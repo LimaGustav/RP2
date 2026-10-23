@@ -9,7 +9,8 @@ from analises.qualidade_integracao import (
 from config import ARQUIVO_BASE_INTEGRADA
 
 
-def carregar_dados():
+def carregar_dados() -> pd.DataFrame:
+    """Carrega a base integrada utilizada nas análises."""
     if not ARQUIVO_BASE_INTEGRADA.exists():
         raise FileNotFoundError(
             f"Arquivo não encontrado: "
@@ -21,13 +22,11 @@ def carregar_dados():
     )
 
 
-def main():
+def main() -> None:
     dados = carregar_dados()
 
-    dados_validos = (
-        executar_analise_descritiva(
-            dados
-        )
+    dados_validos = executar_analise_descritiva(
+        dados
     )
 
     executar_analise_qualidade(
