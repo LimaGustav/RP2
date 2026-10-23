@@ -36,7 +36,9 @@ def carregar_dados() -> pd.DataFrame:
 
     for arquivo in ARQUIVOS_PRF:
         if not arquivo.exists():
-            raise FileNotFoundError(f"Arquivo não encontrado: {arquivo}")
+            raise FileNotFoundError(
+                f"Arquivo não encontrado: {arquivo}"
+            )
 
         base = pd.read_csv(
             arquivo,
@@ -46,7 +48,10 @@ def carregar_dados() -> pd.DataFrame:
 
         bases.append(base)
 
-    return pd.concat(bases, ignore_index=True)
+    return pd.concat(
+        bases,
+        ignore_index=True,
+    )
 
 
 def converter_datas(datas: pd.Series) -> pd.Series:
@@ -56,7 +61,11 @@ def converter_datas(datas: pd.Series) -> pd.Series:
     2025: YYYY-MM-DD
     2026: DD/MM/YYYY
     """
-    texto = datas.astype("string").str.strip()
+    texto = (
+        datas
+        .astype("string")
+        .str.strip()
+    )
 
     datas_iso = pd.to_datetime(
         texto,
@@ -70,21 +79,34 @@ def converter_datas(datas: pd.Series) -> pd.Series:
         errors="coerce",
     )
 
-    return datas_iso.fillna(datas_br)
+    return datas_iso.fillna(
+        datas_br
+    )
 
 
-def converter_coordenadas(dados: pd.DataFrame) -> None:
+def converter_coordenadas(
+    dados: pd.DataFrame,
+) -> None:
     """Converte latitude e longitude para valores numéricos."""
-    for coluna in ["latitude", "longitude"]:
+    for coluna in [
+        "latitude",
+        "longitude",
+    ]:
         dados[coluna] = pd.to_numeric(
             dados[coluna]
             .astype("string")
-            .str.replace(",", ".", regex=False),
+            .str.replace(
+                ",",
+                ".",
+                regex=False,
+            ),
             errors="coerce",
         )
 
 
-def preparar_dados(dados: pd.DataFrame) -> pd.DataFrame:
+def preparar_dados(
+    dados: pd.DataFrame,
+) -> pd.DataFrame:
     """Filtra e padroniza os registros utilizados no projeto."""
     dados = dados.loc[
         dados["uf"].eq("SP"),
@@ -121,7 +143,9 @@ def preparar_dados(dados: pd.DataFrame) -> pd.DataFrame:
         + horario_delta
     )
 
-    converter_coordenadas(dados)
+    converter_coordenadas(
+        dados
+    )
 
     dados["gravidade"] = (
         dados["classificacao_acidente"]
@@ -130,44 +154,107 @@ def preparar_dados(dados: pd.DataFrame) -> pd.DataFrame:
 
     return dados
 
-def validar_dados(dados: pd.DataFrame) -> None:
+
+def validar_dados(
+    dados: pd.DataFrame,
+) -> None:
     """Exibe verificações básicas da base processada."""
     horario_invalido = pd.to_timedelta(
         dados["horario"],
         errors="coerce",
     ).isna().sum()
 
-    print(f"Acidentes em SP: {len(dados):,}")
+    print(
+        f"Acidentes em SP: "
+        f"{len(dados):,}"
+    )
 
     print("\nAcidentes por ano:")
     print(
-        dados["data_inversa"]
-        .dt.year
+        dados["ano"]
         .value_counts()
         .sort_index()
     )
 
     print("\nGravidade:")
     print(
-        dados["classificacao_acidente"]
-        .value_counts(dropna=False)
+        dados[
+            "classificacao_acidente"
+        ]
+        .value_counts(
+            dropna=False
+        )
     )
 
     print("\nValidação:")
-    print("Datas inválidas:", dados["data_inversa"].isna().sum())
-    print("Horários inválidos:", horario_invalido)
-    print("Data/hora inválida:", dados["data_hora"].isna().sum())
-    print("Latitudes inválidas:", dados["latitude"].isna().sum())
-    print("Longitudes inválidas:", dados["longitude"].isna().sum())
-    print("Gravidades inválidas:", dados["gravidade"].isna().sum())
-    print("IDs duplicados:", dados["id"].duplicated().sum())
+
+    print(
+        "Datas inválidas:",
+        dados[
+            "data_inversa"
+        ].isna().sum(),
+    )
+
+    print(
+        "Horários inválidos:",
+        horario_invalido,
+    )
+
+    print(
+        "Data/hora inválida:",
+        dados[
+            "data_hora"
+        ].isna().sum(),
+    )
+
+    print(
+        "Latitudes inválidas:",
+        dados[
+            "latitude"
+        ].isna().sum(),
+    )
+
+    print(
+        "Longitudes inválidas:",
+        dados[
+            "longitude"
+        ].isna().sum(),
+    )
+
+    print(
+        "Gravidades inválidas:",
+        dados[
+            "gravidade"
+        ].isna().sum(),
+    )
+
+    print(
+        "IDs duplicados:",
+        dados[
+            "id"
+        ].duplicated().sum(),
+    )
 
     print("\nPeríodo:")
-    print("Início:", dados["data_hora"].min())
-    print("Fim:", dados["data_hora"].max())
+
+    print(
+        "Início:",
+        dados[
+            "data_hora"
+        ].min(),
+    )
+
+    print(
+        "Fim:",
+        dados[
+            "data_hora"
+        ].max(),
+    )
 
 
-def salvar_dados(dados: pd.DataFrame) -> None:
+def salvar_dados(
+    dados: pd.DataFrame,
+) -> None:
     """Salva a base tratada da PRF."""
     ARQUIVO_ACIDENTES.parent.mkdir(
         parents=True,
@@ -180,15 +267,26 @@ def salvar_dados(dados: pd.DataFrame) -> None:
         encoding="utf-8-sig",
     )
 
-    print(f"\nArquivo criado: {ARQUIVO_ACIDENTES}")
+    print(
+        f"\nArquivo criado: "
+        f"{ARQUIVO_ACIDENTES}"
+    )
 
 
 def main() -> None:
     dados = carregar_dados()
-    dados = preparar_dados(dados)
 
-    validar_dados(dados)
-    salvar_dados(dados)
+    dados = preparar_dados(
+        dados
+    )
+
+    validar_dados(
+        dados
+    )
+
+    salvar_dados(
+        dados
+    )
 
 
 if __name__ == "__main__":
