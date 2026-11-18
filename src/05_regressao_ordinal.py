@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pandas as pd
 
 from config import (
@@ -11,6 +9,7 @@ from config import (
 from modelos.diagnosticos import (
     diagnosticar_ausencia_precipitacao,
     diagnosticar_chances_proporcionais,
+    preparar_variaveis_ausencia,
 )
 from modelos.multinomial import (
     executar_modelos_multinomiais,
@@ -166,6 +165,8 @@ def main():
         f"{len(dados):,}"
     )
 
+    dados = preparar_variaveis_ausencia(dados)
+
     resultado_ausencia = (
         diagnosticar_ausencia_precipitacao(
             dados,
@@ -250,4 +251,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    with pd.option_context("display.max_columns", None, "display.width", 1600):
+        main()

@@ -45,46 +45,9 @@ def _imprimir_ausencia_por(
     )
 
 
-def diagnosticar_ausencia_precipitacao(
-    dados_entrada,
-    min_registros_estacao=20,
-):
-    """Descreve e modela a probabilidade de precipitação ausente."""
-    print()
-    print("=" * 72)
-    print("DIAGNÓSTICO DOS DADOS AUSENTES DE PRECIPITAÇÃO")
-    print("=" * 72)
-
-    dados = dados_entrada.copy()
-
-    dados["precipitacao_ausente"] = (
-        dados["precipitacao_mm"]
-        .isna()
-        .astype(int)
-    )
-
-    total_ausente = int(
-        dados["precipitacao_ausente"].sum()
-    )
-
-    print(
-        f"\nPrecipitação ausente: "
-        f"{total_ausente:,} "
-        f"({total_ausente / len(dados) * 100:.2f}%)"
-    )
-
-    for coluna in [
-        "ano",
-        "mes",
-        "classificacao_acidente",
-        "condicao_metereologica",
-    ]:
-        _imprimir_ausencia_por(
-            dados,
-            coluna,
-        )
-
-    dados["faixa_distancia"] = pd.cut(
+def preparar_variaveis_ausencia(dados):
+    """Cria as colunas do diagnóstico exportadas na base de modelagem."""
+    faixa_distancia = pd.cut(
         dados["distancia_estacao_km"],
         bins=[
             0,
@@ -107,11 +70,43 @@ def diagnosticar_ausencia_precipitacao(
         ],
         include_lowest=True,
     )
-
-    _imprimir_ausencia_por(
-        dados,
-        "faixa_distancia",
+    return dados.assign(
+        precipitacao_ausente=dados["precipitacao_mm"].isna().astype(int),
+        faixa_distancia=faixa_distancia,
     )
+
+
+def diagnosticar_ausencia_precipitacao(
+    dados,
+    min_registros_estacao=20,
+):
+    """Descreve e modela a ausência a partir da base com as colunas preparadas."""
+    print()
+    print("=" * 72)
+    print("DIAGNÓSTICO DOS DADOS AUSENTES DE PRECIPITAÇÃO")
+    print("=" * 72)
+
+    total_ausente = int(
+        dados["precipitacao_ausente"].sum()
+    )
+
+    print(
+        f"\nPrecipitação ausente: "
+        f"{total_ausente:,} "
+        f"({total_ausente / len(dados) * 100:.2f}%)"
+    )
+
+    for coluna in [
+        "ano",
+        "mes",
+        "classificacao_acidente",
+        "condicao_metereologica",
+        "faixa_distancia",
+    ]:
+        _imprimir_ausencia_por(
+            dados,
+            coluna,
+        )
 
     if "estacao_inmet" in dados.columns:
         tabela_estacoes = (
