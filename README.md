@@ -64,7 +64,9 @@ RP2/
 │   ├── modelos/
 │   └── utils/
 ├── executar_pipeline.py
+├── RP2_Analise_PRF_INMET.ipynb
 ├── README.md
+├── requirements-notebook.txt
 └── requirements.txt
 ```
 
@@ -106,3 +108,20 @@ As etapas de preparação e integração geram os CSVs intermediários em
 `datasets/processed/`, incluindo `base_integrada.csv`.
 A etapa 04 exibe a análise descritiva no console e a etapa 05 grava os CSVs de modelagem
 na mesma pasta.
+
+## Notebook de análise
+
+O [notebook de análise](RP2_Analise_PRF_INMET.ipynb) apresenta a cobertura dos dados,
+a seleção da amostra, as visualizações e os resultados estatísticos. Ele usa os CSVs
+em `datasets/processed/`. Execute o pipeline primeiro se precisar gerar esses arquivos.
+
+Com a `.venv` ativada, instale as dependências do notebook e execute-o a partir da raiz.
+
+```powershell
+python -m pip install -r requirements-notebook.txt
+python -m nbconvert --to notebook --execute --inplace RP2_Analise_PRF_INMET.ipynb
+```
+
+Para navegar pelas seções, abra o arquivo em um editor compatível com Jupyter e selecione a
+`.venv` como ambiente. Matplotlib, o kernel Jupyter e o executor do notebook são instalados
+separadamente das dependências do pipeline.
