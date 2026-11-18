@@ -1,0 +1,641 @@
+\documentclass[12pt]{article}
+
+\usepackage{sbc-template}
+\usepackage{graphicx,url}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[brazil]{babel}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{ragged2e}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{makecell}
+\usepackage{needspace}
+\usepackage[hidelinks]{hyperref}
+\urlstyle{same}
+
+\sloppy
+
+\title{Associação entre Precipitação e Gravidade dos Acidentes em Rodovias Federais no Estado de São Paulo}
+
+\author{Gustavo Henrique Ferreira Alves\inst{1}, Gustavo Lima de Souza\inst{1}\\
+        Guilherme Padun Santos\inst{1}}
+
+\address{ Escola de Artes, Ciências e Humanidades (EACH)\\
+          Universidade de São Paulo (USP), São Paulo -- SP -- Brasil }
+
+\begin{document}
+
+\maketitle
+
+
+\begin{abstract}
+This study examined the association between hourly precipitation and severity
+among reported crashes on federal highways in São Paulo state. Police records
+from all of 2025 and from January through May 2026 were linked to weather
+station measurements.
+The primary analysis used ordinal logistic regression on 3,730 crashes with
+valid precipitation within 30 km of the nearest station. The adjusted models
+provided no statistically significant evidence of an association with severity
+for either precipitation per millimeter (OR 0.977, 95\% CI 0.949--1.006)
+or binary rain (OR 0.831, 95\% CI 0.638--1.084). Binary estimates were
+more sensitive to matching rules. In the complementary comparison,
+the PRF and INMET rain indicators showed moderate agreement beyond chance.
+\end{abstract}
+
+\begin{resumo}
+Este trabalho avaliou a associação entre precipitação horária e gravidade
+entre os acidentes registrados em rodovias federais paulistas. Foram
+integrados registros da PRF de todo o ano de 2025 e de janeiro a maio de 2026 a medições
+do INMET. A regressão logística ordinal principal incluiu 3.730 acidentes
+com precipitação válida a até 30 km da estação mais próxima. Os modelos
+ajustados não forneceram evidência estatisticamente significativa de
+associação com a gravidade para precipitação por milímetro (OR 0,977,
+IC95\% 0,949--1,006) ou chuva binária (OR 0,831, IC95\% 0,638--1,084).
+As estimativas binárias foram mais sensíveis às regras de pareamento.
+Na comparação complementar, os indicadores de chuva da PRF e do INMET
+apresentaram concordância moderada além do acaso.
+\end{resumo}
+
+\section{Introdução}
+
+Os acidentes de trânsito representam um importante problema de segurança viária e podem estar associados a fatores relacionados aos condutores, aos veículos, à infraestrutura das vias e às condições ambientais. No contexto das rodovias federais brasileiras, estudo realizado pela Fundação Dom Cabral (FDC), a partir de dados da Polícia Rodoviária Federal (PRF) e do Departamento Nacional de Infraestrutura de Transportes (DNIT), analisou 358.217 acidentes ocorridos entre 2018 e 2024, considerando rodovias com Volume Médio Diário Anual (VMDA) igual ou superior a 1.000 veículos. Entre as dimensões analisadas estão as condições meteorológicas e a taxa de severidade dos acidentes, evidenciando a relevância dessas variáveis para estudos de segurança rodoviária \cite{fdc2025}.
+
+A precipitação merece atenção por estar associada às condições de circulação e ao
+comportamento do tráfego. Estudos sobre segurança viária abordam desfechos distintos,
+como a velocidade dos veículos, a ocorrência de acidentes e a gravidade das ocorrências.
+Para investigar a gravidade, o estado de São Paulo constitui um recorte que permite
+relacionar registros georreferenciados de acidentes em rodovias federais a medições de
+precipitação espacial e temporalmente próximas.
+
+Dessa forma, este trabalho tem como objetivo \textbf{avaliar a associação entre a
+precipitação registrada por estações meteorológicas e a gravidade dos acidentes em
+rodovias federais no estado de São Paulo}. A integração de registros da Polícia
+Rodoviária Federal (PRF) e do Instituto Nacional de Meteorologia (INMET) permite
+analisar a quantidade de precipitação e comparar, de forma complementar, os
+indicadores de chuva das duas fontes. O desfecho é a gravidade entre os acidentes
+registrados pela PRF. O estudo não estima o risco de ocorrência de acidentes em
+situações com ou sem chuva.
+
+\section{Fundamentos Teóricos}
+
+\subsection{Mensuração da precipitação e gravidade ordinal}
+
+A precipitação em milímetros representa uma quantidade acumulada durante
+um intervalo. Nas estações automáticas do INMET, o registro horário de
+precipitação total corresponde ao acumulado da hora que termina no horário
+de referência \cite{inmetglossario}. A estação mede em um ponto fixo, enquanto
+a condição meteorológica da PRF descreve o contexto registrado para cada
+ocorrência. A distância até a estação, a duração do intervalo e a variação
+local da chuva podem, portanto, levar a classificações diferentes.
+
+A classificação de gravidade da PRF distingue três níveis ordenados, de
+acidentes sem vítimas a acidentes com vítimas feridas e fatais. A ordem
+indica aumento de gravidade. As diferenças entre os níveis não precisam ser
+tratadas como intervalos iguais em uma escala numérica.
+
+\subsection{Regressão ordinal e interpretação}
+
+Na regressão logística ordinal de chances proporcionais \cite{mccullagh1980},
+uma mesma razão de chances (OR) descreve a associação da exposição nos
+dois cortes. O primeiro compara acidentes com vítimas, feridas ou fatais,
+a acidentes sem vítimas. O segundo compara acidentes fatais aos demais.
+Para precipitação contínua, a OR é interpretada por 1 mm adicional. Para
+chuva binária, ela compara a presença à ausência de chuva. Uma OR abaixo
+de 1 indica uma estimativa de menores chances cumulativas de maior
+gravidade, consideradas as covariáveis no modelo ajustado.
+
+O intervalo de confiança de 95\% (IC95\%) expressa a imprecisão da estimativa.
+Quando inclui 1, os dados são compatíveis com esse valor e com outras
+magnitudes de associação dentro do intervalo. A regressão multinomial
+estima contrastes separados para cada categoria em relação a uma de
+referência e dispensa uma OR cumulativa comum aos dois cortes.
+
+\subsection{Associação e concordância entre indicadores}
+
+A correlação de Pearson avalia se os dois indicadores tendem a variar juntos.
+Com dois indicadores codificados em 0 e 1, o coeficiente de Pearson é
+numericamente igual ao $\phi$ obtido pela tabela $2\times 2$. Esses
+coeficientes expressam a mesma associação. A concordância avalia em que
+medida os indicadores classificam os mesmos acidentes da mesma forma. O
+$\kappa$ de Cohen desconta a concordância esperada ao acaso dadas as
+proporções marginais \cite{cohen1960}. A concordância total e a concordância
+por classe ajudam a distinguir a ocorrência de acordo para chuva e para
+ausência de chuva.
+\section{Trabalhos Correlatos}
+
+A Tabela~\ref{tab:trabalhos_relacionados} sintetiza os principais estudos
+abordados nesta seção, destacando os métodos empregados, os dados utilizados
+e as principais diferenças em relação à abordagem adotada neste trabalho.
+
+\begin{table}[H]
+    \centering
+    \caption{Comparação entre os trabalhos correlatos e a abordagem deste estudo.}
+    \label{tab:trabalhos_relacionados}
+
+    \footnotesize
+    \renewcommand{\arraystretch}{1.35}
+    \setlength{\tabcolsep}{3.5pt}
+
+    \begin{tabularx}{\textwidth}{
+        >{\RaggedRight\arraybackslash}p{2.7cm}
+        >{\RaggedRight\arraybackslash}p{3.0cm}
+        >{\RaggedRight\arraybackslash}p{3.7cm}
+        >{\RaggedRight\arraybackslash}X
+    }
+        \toprule
+
+        \textbf{Referência} &
+        \textbf{Método} &
+        \textbf{Dados utilizados} &
+        \makecell[l]{\textbf{Diferencial deste}\\\textbf{trabalho}} \\
+
+        \midrule
+
+        \makecell[l]{Caleffi et al.\\(2016)} &
+        K-means e Fuzzy C-Means &
+        BR-290/RS; fluxo, velocidade, acidentes e clima &
+        Analisa a associação entre precipitação e gravidade dos acidentes. \\
+
+        \addlinespace
+
+        \makecell[l]{Bergel-Hayat et al.\\(2013)} &
+        Séries temporais &
+        Acidentes e variáveis meteorológicas na Europa &
+        Realiza análise específica das rodovias federais de São Paulo. \\
+
+        \addlinespace
+
+        \makecell[l]{Silva et al.\\(2020)} &
+        Correspondência Múltipla &
+        BR-376/PR; acidentes e precipitação diária &
+        Utiliza precipitação horária associada espacial e temporalmente ao acidente. \\
+
+        \addlinespace
+
+        \makecell[l]{Führ e Inacio\\(2026)} &
+        RF, SVM e MLP &
+        BR-101/SC; PRF, meteorologia e tráfego &
+        Avalia gravidade em vez de prever apenas a ocorrência de acidentes. \\
+
+        \addlinespace
+
+        \makecell[l]{Brasileiro et al.\\(2026)} &
+        Heterogeneidade espacial &
+        Acidentes e precipitação na malha federal brasileira &
+        Adota recorte específico de São Paulo e três níveis de gravidade. \\
+
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+A relação entre condições meteorológicas e segurança viária tem sido investigada
+por diferentes abordagens. Um estudo realizado na rodovia BR-290/RS analisou a
+influência de condições climáticas e acidentes sobre o comportamento do tráfego
+\cite{caleffi2016}. Foram integradas informações de fluxo, velocidade, acidentes
+e condições meteorológicas, sendo identificadas alterações nas condições de
+operação da rodovia durante períodos de chuva, incluindo redução da velocidade
+dos veículos. O estudo evidencia que informações meteorológicas podem contribuir
+para a caracterização das condições de circulação e segurança nas rodovias.
+
+Mais diretamente relacionado à precipitação e às características dos acidentes,
+um estudo realizado em um trecho da BR-376, no estado do Paraná, combinou
+registros de acidentes e dados pluviométricos \cite{silva2020}. O mapa da
+Análise de Correspondência Múltipla não mostrou um padrão claro entre as faixas
+de precipitação diária e as características dos acidentes. A presença de chuva
+apareceu como circunstância relevante. Esse trabalho se aproxima da proposta
+deste estudo por relacionar diretamente informações pluviométricas a
+características de acidentes rodoviários.
+
+Em escala mais ampla, um estudo encontrou diferenças entre estados na
+associação entre precipitação e ocorrência de acidentes nas rodovias
+federais brasileiras \cite{brasileiro2026}. O estudo também avaliou a relação entre
+essas correlações e o PIB estadual. Uma análise de séries históricas na
+França, nos Países Baixos e na região de Atenas identificou diferenças
+na relação entre condições meteorológicas e ocorrência de acidentes
+conforme a região e o tipo de via \cite{bergel2013}.
+
+Além da análise da relação entre precipitação e acidentes, estudos recentes
+também demonstram a viabilidade da integração de diferentes fontes de dados.
+Em um estudo realizado na BR-101, em Santa Catarina, registros da Polícia
+Rodoviária Federal foram enriquecidos com informações meteorológicas e de
+tráfego \cite{fuhr2026}. Embora o objetivo tenha sido a predição de acidentes
+por meio de modelos de aprendizado de máquina, o trabalho é relevante para esta
+pesquisa por demonstrar a utilização conjunta de dados da PRF e informações
+meteorológicas externas.
+
+Este estudo combina precipitação horária pareada a cada ocorrência e uma
+escala ordinal de gravidade.
+
+
+\section{Metodologia}
+
+\subsection{Fontes, recorte e variáveis}
+
+Foram utilizados os registros de acidentes da Polícia Rodoviária Federal
+(PRF) em rodovias federais do estado de São Paulo, referentes a todo o ano
+de 2025 e ao período de 1 de janeiro a 31 de maio de 2026 \cite{prf2026}.
+A unidade de observação foi o acidente rodoviário, descrito na base
+da PRF por sua data, horário, coordenadas e classificação. Os registros de
+precipitação vieram das séries horárias de estações automáticas do INMET
+localizadas no estado de São Paulo \cite{inmet2026}.
+
+A resposta foi a gravidade registrada pela PRF, ordenada em 0 (sem
+vítimas), 1 (com vítimas feridas) e 2 (com vítimas fatais). A exposição
+principal para a quantidade de precipitação foi o acumulado horário
+do INMET, em milímetros. Também foi avaliado um indicador binário
+de chuva, igual a 0 para 0 mm e a 1 para valores acima de 0 mm.
+Leituras ausentes não foram classificadas como 0 mm.
+
+\subsection{Pareamento e critérios de seleção}
+
+Para cada acidente, selecionou-se primeiro a estação geograficamente
+mais próxima, pela distância de Haversine, e depois o registro dessa
+estação com a menor diferença absoluta para o horário do acidente.
+Os horários das estações foram convertidos de UTC para a hora local.
+Em caso de empate temporal, selecionou-se o registro anterior. A
+validade da leitura foi verificada após essa seleção.
+
+A modelagem principal foi limitada a acidentes com precipitação válida,
+a até 30 km da estação, diferença temporal de até 60 minutos e
+informações completas para o desfecho e as covariáveis. O limite de
+30 km foi mantido como compromisso entre a proximidade espacial da
+medição e a retenção de observações. A proximidade espacial e temporal
+não garante que o acumulado na estação reproduza o do local do acidente.
+
+\subsection{Modelo principal e avaliação complementar da modelagem}
+
+A associação foi estimada por regressão logística ordinal. Para cada
+representação da precipitação, ajustou-se um modelo bruto, contendo
+apenas a exposição, e um modelo com fase do dia, tipo de pista, traçado
+da via, ano e mês. Como as contagens de mortos e feridos compõem a
+classificação da gravidade, elas ficaram fora dos preditores. São
+reportadas OR, IC95\% e valores de $p$, com 5\% como nível de referência.
+
+Para a precipitação contínua, o diagnóstico exploratório de chances
+proporcionais usou dois modelos logísticos binários ajustados, um para
+cada corte de gravidade. Também se ajustou uma regressão multinomial
+complementar na mesma amostra e com as mesmas covariáveis, usando os acidentes sem
+vítimas como categoria de referência. Para descrever as perdas, ajustou-se
+uma regressão logística para a ausência de precipitação na base integrada,
+com gravidade, ano, mês, distância, condição meteorológica da PRF e
+estação do INMET. Estações com menos de 20 ocorrências foram agrupadas
+nesse diagnóstico.
+
+\subsection{Sensibilidades do pareamento e comparação entre fontes}
+
+A sensibilidade espacial manteve o pareamento original e usou limites
+de 40 e 50 km, definidos independentemente do valor de $p$. Na sensibilidade
+temporal, manteve-se a estação original e compararam-se três horários
+nos mesmos acidentes elegíveis e com leitura nas três regras. A seleciona
+a medição mais próxima (regra principal) e pode usar um acumulado que
+termina após o acidente. B é o registro que encerra o intervalo horário que
+contém o acidente. C é o registro da última hora encerrada até o horário
+do acidente. Em hora cheia, B e C usam o próprio horário do acidente.
+Por exemplo, para um acidente às 14h20 com registros horários regulares,
+A e C usam o acumulado de 13h a 14h, e B usa o de 14h a 15h.
+Nesse exemplo, B inclui 40 minutos após o acidente, e C termina
+20 minutos antes da ocorrência.
+
+A sensibilidade com estação alternativa aplicou-se aos casos sem
+precipitação na estação original e dentro do raio de 30 km. Manteve-se
+o horário de A e buscou-se a estação geograficamente mais próxima com
+leitura válida nesse horário, também dentro de 30 km. Uma leitura de 0 mm
+foi elegível. Os casos com precipitação válida no pareamento principal
+mantiveram a medição original.
+
+Na comparação complementar, as categorias Chuva e Garoa/Chuvisco da PRF
+foram codificadas como 1. Céu Claro, Sol, Nublado, Vento e Nevoeiro/Neblina
+foram codificadas como 0, por não indicarem chuva explicitamente. Registros
+ignorados ou sem categoria mapeada foram tratados como ausentes.
+Usaram-se os pares válidos até 10, 20 e 30 km. Foram calculados Pearson/$\phi$,
+$\kappa$ de Cohen e concordância total e por classe. O valor de $p$ é nominal,
+do teste qui-quadrado de independência sem correção para agrupamento.
+O IC95\% exploratório de $\phi$ foi calculado com 5.000 reamostragens por
+estação. Por fim, os modelos ordinais com chuva binária da PRF e do INMET
+foram comparados na mesma amostra a até 30 km.
+
+\clearpage
+\section{Resultados e Discussão}
+
+\subsection{Cobertura, perdas e composição da amostra}
+
+A preparação das bases da Polícia Rodoviária Federal resultou em 6.515
+acidentes em rodovias federais paulistas. Desse total, 4.683 foram
+registrados ao longo de 2025 e 1.832 entre 1 de janeiro e 31 de maio de
+2026. Entre os acidentes analisados, 5.273 foram classificados como
+acidentes com vítimas feridas, 971 como acidentes sem vítimas e 271
+como acidentes com vítimas fatais. Foram consideradas 40 estações
+automáticas do INMET, totalizando 583.680 registros horários.
+
+Dos 6.515 acidentes, 5.661 apresentaram valor válido de precipitação na
+medição associada, enquanto 854 apresentaram valor ausente, o equivalente
+a 13,1\% da base. A distância até a estação teve média de 26,2 km,
+mediana de 21,7 km e quartis de 12,1 e 39,2 km. A distância máxima foi de
+81,8 km. A mediana da diferença temporal foi de 15 minutos e o máximo foi
+de 30 minutos. Essas diferenças se referem aos horários de referência
+dos registros. A duração de uma hora do intervalo medido limita a
+resolução temporal mesmo quando a diferença é pequena.
+
+A Figura~\ref{fig:cobertura} mostra a proporção acumulada dos 6.515
+acidentes segundo a distância até a estação mais próxima. O raio
+principal de 30 km abrangeu 65,6\% dos registros antes de considerar a
+disponibilidade da medição. Os raios de 40 km e 50 km abrangeram
+75,9\% e 87,8\%, respectivamente.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.87\linewidth]{cobertura_distancia.pdf}
+    \caption{Cobertura acumulada por distância à estação ($N=6.515$).}
+    \label{fig:cobertura}
+\end{figure}
+
+\Needspace{3\baselineskip}
+No diagnóstico ajustado de ausência de medição, nenhum dos dois
+contrastes de gravidade em relação aos acidentes fatais atingiu
+significância estatística. A OR de ausência foi 0,726 para feridos
+(IC95\% 0,467--1,129, $p=0{,}155$) e 0,928 para acidentes sem vítimas
+(IC95\% 0,567--1,517, $p=0{,}765$). O ajuste apresentou instabilidade
+em algumas categorias sem variação de ausência, o que limita o alcance
+do diagnóstico. O resultado é insuficiente para estabelecer ausência
+completamente ao acaso (MCAR) ou ao acaso condicionalmente aos dados
+observados (MAR). Permanece a possibilidade de viés de seleção na análise
+de casos completos.
+
+As perdas variaram por estação. A estação de Registro, por exemplo,
+teve 200 leituras ausentes nos
+303 acidentes a ela associados. A fração sem leitura foi de 15,0\%
+no ano completo de 2025 e 8,4\% de janeiro a maio de 2026. Como os
+períodos têm extensões e coberturas sazonais distintas, esses percentuais
+descrevem as perdas em cada recorte.
+
+A Tabela~\ref{tab:fluxo} apresenta o fluxo de seleção. O limite espacial de
+30 km reteve 3.730 dos 5.661 acidentes com precipitação válida e produziu
+a maior redução da amostra, com 1.931 exclusões. O limite temporal de
+60 minutos e o critério de informações completas não excluíram registros
+adicionais. O pareamento atribuiu uma leitura às ocorrências com base
+apenas nas estações localizadas no estado. Essa delimitação pode reduzir
+a qualidade da aproximação em locais próximos às divisas estaduais.
+
+\begin{table}[H]
+    \centering
+    \caption{Seleção dos acidentes para a análise principal.}
+    \label{tab:fluxo}
+    \begin{tabular}{lrr}
+        \toprule
+        Etapa & Excluídos na etapa & Restantes \\
+        \midrule
+        Base integrada & \textemdash & 6.515 \\
+        Com precipitação válida & 854 & 5.661 \\
+        Distância até 30 km & 1.931 & 3.730 \\
+        Diferença temporal até 60 min & 0 & 3.730 \\
+        Desfecho e covariáveis completos & 0 & 3.730 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Entre os 5.661 acidentes com medição válida, apenas 559 (9,9\%) tiveram
+precipitação acima de 0 mm, e o máximo foi de 82,0 mm. A concentração
+em zero e a presença de valores altos motivam a leitura conjunta das
+duas exposições.
+
+A base final de modelagem foi composta por 3.730 acidentes (57,3\% da
+base integrada). Desse total, 3.058 foram classificados como acidentes
+com vítimas feridas, 530 como acidentes sem vítimas e 142 como acidentes
+com vítimas fatais. Houve 402 ocorrências com precipitação superior a
+0 mm (10,8\%) e 3.328 com precipitação igual a zero. Entre os acidentes
+fatais, nove tiveram chuva registrada pelo INMET, o que limita a precisão
+das comparações específicas para essa categoria.
+
+A base principal reuniu 14 estações, com 46,2\% dos acidentes associados
+à estação A701, e 71,2\% das ocorrências foram na BR-116. Assim, os
+resultados descrevem uma amostra concentrada em determinados trechos
+e estações. Na amostra principal, 398 acidentes compartilharam uma
+mesma leitura de estação e horário com pelo menos outro acidente.
+Os IC95\% dos modelos principais não incorporam explicitamente
+agrupamento por estação e horário.
+
+\subsection{Estimativas principais e avaliação da modelagem}
+
+A Tabela~\ref{tab:principal} apresenta os modelos ordinais brutos e
+ajustados. Para a precipitação contínua, a estimativa permaneceu semelhante
+após o ajuste. A OR ajustada de 0,977 corresponde a uma estimativa de
+chances cumulativas cerca de 2,3\% menores por milímetro adicional. O
+IC95\% inclui 1 e é compatível com estimativas que vão de chances
+cumulativas cerca de 5\% menores a 0,6\% maiores por milímetro.
+
+\begin{table}[H]
+    \centering
+    \caption{Regressões logísticas ordinais na amostra principal ($N=3.730$).}
+    \label{tab:principal}
+    \begin{tabular}{llrrr}
+        \toprule
+        Exposição & Modelo & OR & IC95\% & $p$ \\
+        \midrule
+        Precipitação (por mm) & Bruto    & 0,978 & 0,950--1,006 & 0,124 \\
+        Chuva (sim vs.\ não)  & Bruto    & 0,766 & 0,592--0,991 & 0,042 \\
+        Precipitação (por mm) & Ajustado & 0,977 & 0,949--1,006 & 0,123 \\
+        Chuva (sim vs.\ não)  & Ajustado & 0,831 & 0,638--1,084 & 0,172 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Para chuva binária, a OR passou de 0,766 no modelo bruto (IC95\%
+0,592--0,991) para 0,831 no ajustado (IC95\% 0,638--1,084). A estimativa
+se aproximou de 1, e o intervalo se alargou na escala da OR e passou a
+incluir 1. Para ambas as exposições, os modelos ajustados da análise
+principal não forneceram evidência estatisticamente significativa de
+associação com a gravidade.
+
+No diagnóstico exploratório de chances proporcionais, a OR ajustada por
+milímetro foi 0,974 ($p=0{,}079$) para acidentes com vítimas em relação
+aos sem vítimas e 1,009 ($p=0{,}786$) para fatais em relação aos demais.
+As estimativas diferiram entre cortes, mas esse procedimento não constitui
+um teste formal de igualdade dos coeficientes. Isoladamente, a diferença
+observada pode refletir a imprecisão das estimativas para acidentes fatais.
+
+Na regressão multinomial complementar, com os acidentes sem vítimas
+como referência, as ORs por milímetro foram 0,973 para feridos
+(IC95\% 0,944--1,003, $p=0{,}075$) e 0,989 para fatais (IC95\%
+0,924--1,058, $p=0{,}744$). Para chuva binária, foram 0,899
+(IC95\% 0,672--1,203, $p=0{,}474$) e 0,554 (IC95\% 0,265--1,159,
+$p=0{,}117$), respectivamente. Todos os intervalos incluíram 1, de
+forma semelhante ao modelo ordinal ajustado. O intervalo amplo para o
+contraste fatal com chuva binária deixa margem para estimativas de
+magnitudes distintas.
+
+\subsection{Robustez às decisões de pareamento}
+
+A Tabela~\ref{tab:robustez} reúne as estimativas ajustadas das
+sensibilidades. A variação espacial amplia a amostra, a comparação
+temporal mantém os mesmos acidentes e a troca de estação recupera
+medições que estavam ausentes no horário original.
+
+\begin{table}[H]
+    \centering
+    \caption{Sensibilidades do pareamento. Estimativas ordinais ajustadas.}
+    \label{tab:robustez}
+    \footnotesize
+    \begin{tabular}{lrrr}
+        \toprule
+        Cenário & $N$ & \multicolumn{2}{c}{OR (IC95\%)} \\
+        \cmidrule(lr){3-4}
+                  &      & Precipitação (por mm) & Chuva (sim vs.\ não) \\
+        \midrule
+        \multicolumn{4}{l}{\textit{Limite espacial}} \\
+        30 km (principal) & 3.730 & 0,977 (0,949--1,006) & 0,831 (0,638--1,084) \\
+        40 km             & 4.339 & 0,978 (0,950--1,006) & 0,788 (0,616--1,008) \\
+        50 km             & 5.015 & 0,976 (0,949--1,003) & 0,775 (0,615--0,978) \\
+        \addlinespace
+        \multicolumn{4}{l}{\textit{Horários nos mesmos acidentes}} \\
+        A: horário mais próximo  & 3.700 & 0,977 (0,949--1,006) & 0,839 (0,642--1,095) \\
+        B: intervalo do acidente & 3.700 & 0,961 (0,919--1,004) & 0,785 (0,599--1,028) \\
+        C: última hora encerrada & 3.700 & 0,981 (0,952--1,012) & 0,805 (0,618--1,049) \\
+        \addlinespace
+        Estação alternativa, horário A & 3.891 & 0,976 (0,948--1,005) & 0,773 (0,597--1,001) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{Limite espacial.} As estimativas por milímetro permaneceram
+semelhantes entre os limites de 30, 40 e 50 km, com IC95\% incluindo
+1 nos três cenários. Para chuva binária, a OR passou de 0,831 a 30 km
+para 0,788 a 40 km ($p=0{,}058$) e 0,775 a 50 km ($p=0{,}032$). O
+intervalo a 50 km ficou abaixo de 1, mas essa comparação inclui 1.285
+ocorrências a mais do que a análise principal e aceita medições mais
+distantes. O resultado indica sensibilidade da estimativa binária ao
+critério espacial e à composição da amostra. O limite de 30 km
+permaneceu como referência do estudo.
+
+\textbf{Horário da medição.} Entre os 3.700 acidentes com leitura válida
+nas três regras, os números com chuva foram 398 em A, 381 em B e 406 em
+C. Em relação a A, a regra B reclassificou 169 acidentes (4,57\%),
+76 de sem chuva para com chuva e 93 no sentido inverso. A regra C
+reclassificou 124 (3,35\%), com 66 mudanças de sem chuva para com chuva
+e 58 no sentido inverso. Como os acidentes e as estações são os mesmos,
+essas diferenças mostram que o mesmo acidente pode receber uma
+classificação diferente de presença ou ausência de chuva conforme
+o intervalo de acumulação usado. Os IC95\% das duas exposições
+incluíram 1 nas três regras.
+
+\textbf{Estação alternativa.} A busca por uma leitura válida no mesmo
+horário recuperou 161 acidentes, dos quais nove tiveram chuva, elevando
+a amostra de 3.730 para 3.891 e o total com chuva de 402 para 411.
+Todos os 161 casos recuperados mudaram de estação. Nesses casos,
+as medianas da distância original e da nova foram 16,4 e 19,1 km,
+respectivamente. A mediana do aumento individual foi de 2,7 km,
+com percentil 95 de 5,5 km e máximo de 20,5 km.
+Entre as ocorrências que já tinham leitura válida, nenhuma mudou
+de classificação de chuva ou de valor em milímetros.
+
+A OR por milímetro permaneceu próxima à principal ($p=0{,}100$).
+Para chuva binária,
+a estimativa ajustada passou de 0,831 para 0,773 (IC95\% 0,597--1,001,
+$p=0{,}051$). A mudança decorreu da entrada dos casos recuperados, já
+que as exposições dos casos medidos permaneceram iguais. Em conjunto,
+as sensibilidades mostram estimativas contínuas relativamente estáveis
+e com IC95\% incluindo 1. As estimativas binárias foram mais sensíveis
+às escolhas de pareamento e à inclusão de novos acidentes.
+
+\subsection{Comparação complementar PRF--INMET}
+
+Na comparação entre os indicadores de chuva, os dois registros tenderam
+a variar na mesma direção. No recorte de até 30 km, com 3.679 pares válidos, a
+correlação Pearson/$\phi$ foi positiva e de magnitude moderada
+($r=\phi=0{,}541$, IC95\% exploratório 0,473--0,571 e $p$ nominal
+$<0{,}001$). O $\kappa$ de Cohen de 0,528 indicou concordância moderada
+além do acaso. O valor nominal de $p$ se refere à associação entre os
+indicadores e pode ser otimista se acidentes associados à mesma estação
+não forem independentes.
+
+\begin{table}[H]
+    \centering
+    \caption{Classificações de chuva pela PRF e pelo INMET até 30 km.}
+    \label{tab:prf-inmet}
+    \begin{tabular}{lrrr}
+        \toprule
+        PRF & INMET sem chuva & INMET com chuva & Total \\
+        \midrule
+        Sem registro explícito de chuva & 2.986 & 107 & 3.093 \\
+        Chuva ou garoa & 297 & 289 & 586 \\
+        \midrule
+        Total & 3.283 & 396 & 3.679 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\Needspace{3\baselineskip}
+Na Tabela~\ref{tab:prf-inmet}, as classificações coincidiram em 89,0\%
+dos casos e divergiram em 11,0\%. A concordância específica para ausência de
+chuva foi de 93,7\%, ante 58,9\% para presença de chuva. Em cada classe,
+essa métrica compara duas vezes o número de acidentes classificados
+naquela classe por ambas as fontes com a soma dos dois totais marginais.
+O predomínio de registros sem chuva ajuda a explicar a concordância total
+elevada. As discrepâncias incluem 297 casos com chuva registrada pela
+PRF e 0 mm no INMET, e 107 no sentido inverso. As fontes representam
+aspectos distintos da exposição e nenhuma foi tomada como padrão-ouro.
+
+\begin{table}[H]
+    \centering
+    \caption{Associação e concordância PRF--INMET por limite espacial.}
+    \label{tab:concordancia}
+    \footnotesize
+    \begin{tabular}{rrrrrrr}
+        \toprule
+        & & & & \multicolumn{3}{c}{Concordância} \\
+        \cmidrule(lr){5-7}
+        Limite & $N$ & $\phi$ (IC95\%) & $\kappa$ & Total & Chuva (específica) & Ausência (específica) \\
+        \midrule
+        10 km & 1.227 & 0,597 (0,477--0,651) & 0,591 & 92,7\% & 63,1\% & 95,9\% \\
+        20 km & 2.612 & 0,556 (0,464--0,611) & 0,544 & 90,0\% & 59,9\% & 94,3\% \\
+        30 km & 3.679 & 0,541 (0,473--0,571) & 0,528 & 89,0\% & 58,9\% & 93,7\% \\
+        \bottomrule
+    \end{tabular}
+    \par\smallskip
+    {\footnotesize $p$ nominal de Pearson/$\phi$ $<0{,}001$ nos três recortes.
+    IC95\% exploratório por estação.}
+\end{table}
+
+Nos recortes mais próximos, os valores de $\phi$ e $\kappa$ foram maiores
+(Tabela~\ref{tab:concordancia}). Esse padrão é compatível com melhor
+correspondência entre os registros quando a estação está mais próxima,
+mas os recortes acumulam conjuntos distintos de acidentes e os
+intervalos exploratórios de $\phi$ se sobrepõem. A comparação descreve
+o padrão observado e não isola a contribuição da distância.
+
+Nos mesmos 3.679 acidentes, as ORs binárias ajustadas foram 0,826 para
+o INMET (IC95\% 0,633--1,080, $p=0{,}162$) e 0,906 para a PRF
+(IC95\% 0,712--1,153, $p=0{,}423$). Os intervalos das duas estimativas
+incluíram 1. A interpretação inferencial manteve-se com as duas fontes
+na mesma amostra.
+
+As estimativas descrevem associações no conjunto de acidentes registrados.
+O ajuste considera características da via e do momento da ocorrência,
+mas a análise não inclui, por exemplo, medições de volume de tráfego ou
+velocidade no momento do acidente. Além disso, a medida pluviométrica
+atribuída depende da cobertura e da resolução horária das estações.
+Esses limites devem ser considerados ao interpretar a direção e a
+magnitude das estimativas e ao transferir os resultados a outros
+trechos ou períodos.
+
+\section{Conclusão}
+
+Nos 3.730 acidentes da análise principal, os modelos ordinais ajustados
+não forneceram evidência estatisticamente significativa de associação
+entre gravidade e precipitação, por milímetro ou como presença de chuva.
+Os intervalos admitem associações de diferentes magnitudes. A multinomial
+complementar teve interpretação semelhante. Nas sensibilidades, as
+estimativas contínuas foram relativamente estáveis e as binárias variaram
+mais com o pareamento. A concordância PRF--INMET foi moderada além do acaso
+e maior para ausência de chuva. A cobertura das estações, a resolução
+horária e as perdas na integração limitam a interpretação sobre a
+gravidade entre os acidentes registrados.
+
+\begingroup
+\raggedright
+\bibliographystyle{sbc}
+\bibliography{sbc-template}
+\endgroup
+
+\end{document}
