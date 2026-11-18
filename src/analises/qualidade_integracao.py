@@ -11,6 +11,22 @@ LIMITES_DISTANCIA = [
 ]
 
 
+MAPA_CHUVA_PRF = {
+    "Chuva": 1,
+    "Garoa/Chuvisco": 1,
+    "Céu Claro": 0,
+    "Sol": 0,
+    "Nublado": 0,
+    "Vento": 0,
+    "Nevoeiro/Neblina": 0,
+}
+
+
+def classificar_chuva_prf(dados):
+    """Codifica chuva ou garoa, deixando Ignorado e outras categorias ausentes."""
+    return dados["condicao_metereologica"].map(MAPA_CHUVA_PRF)
+
+
 def comparar_prf_inmet(
     dados,
     dados_validos,
@@ -159,30 +175,9 @@ def avaliar_qualidade_por_distancia(
 
     dados_validos = dados_validos.copy()
 
-    categorias_chuva = [
-        "Chuva",
-        "Garoa/Chuvisco",
-    ]
-
-    categorias_sem_chuva = [
-        "Céu Claro",
-        "Nublado",
-        "Sol",
-        "Nevoeiro/Neblina",
-        "Vento",
-    ]
-
-    dados_validos["chuva_prf"] = (
-        dados_validos[
-            "condicao_metereologica"
-        ].isin(categorias_chuva)
-    )
-
-    dados_validos["sem_chuva_prf"] = (
-        dados_validos[
-            "condicao_metereologica"
-        ].isin(categorias_sem_chuva)
-    )
+    indicador_prf = classificar_chuva_prf(dados_validos)
+    dados_validos["chuva_prf"] = indicador_prf.eq(1)
+    dados_validos["sem_chuva_prf"] = indicador_prf.eq(0)
 
     resultados = []
 
