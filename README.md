@@ -109,6 +109,39 @@ As etapas de preparação e integração geram os CSVs intermediários em
 A etapa 04 exibe a análise descritiva no console e a etapa 05 grava os CSVs de modelagem
 na mesma pasta.
 
+## Análises adicionais
+
+Depois de gerar os oito CSVs do pipeline principal, execute o comando separado.
+
+```powershell
+python src\06_analises_adicionais.py
+```
+
+Os quatro arquivos são gravados em `datasets/processed/analises_adicionais/`.
+
+| CSV | Conteúdo |
+|---|---|
+| `sensibilidade_temporal.csv` | A, B e C na interseção das três amostras, com chuva, reclassificações e OR ajustadas. |
+| `sensibilidade_estacao.csv` | Amostra principal e recuperação na estação válida mais próxima no mesmo horário, com distâncias, diferenças temporais e OR ajustadas. |
+| `concordancia_prf_inmet.csv` | Contagens 2×2, Pearson/φ, kappa e concordâncias até 10, 20 e 30 km. |
+| `modelos_prf_inmet.csv` | OR brutas e ajustadas para chuva binária PRF e INMET na mesma amostra. |
+
+O horário do registro INMET encerra o intervalo de acumulação. As regras B e C
+mantêm a estação original e usam, respectivamente, a hora que contém o acidente
+e a última hora encerrada até a ocorrência. Em horas cheias, B e C usam o
+registro daquele horário. A recuperação mantém o horário A. Uma medição de 0 mm
+é válida.
+
+Na comparação de fontes, a PRF codifica chuva e garoa como 1. Céu claro, sol,
+nublado, vento e neblina são 0, ou ausência de registro explícito de chuva.
+Condição ignorada fica ausente. As concordâncias são proporções entre 0 e 1.
+O valor de p nominal usa o qui-quadrado de Pearson (Nφ², 1 grau de liberdade).
+O IC95% exploratório de φ usa 5.000 reamostragens por estação, com semente fixa.
+
+O notebook inclui as tabelas adicionais quando os quatro CSVs estão presentes.
+Sem o conjunto completo, exibe uma orientação de execução e mantém a análise
+principal disponível. O executor usa as dependências de `requirements.txt`.
+
 ## Notebook de análise
 
 O [notebook de análise](RP2_Analise_PRF_INMET.ipynb) apresenta a cobertura dos dados,
