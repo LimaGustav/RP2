@@ -8,11 +8,7 @@ A análise utiliza dados da Polícia Rodoviária Federal (PRF) e do Instituto Na
 
 ### PRF
 
-- `datatran2026.csv`  
-  Base agrupada por ocorrência. Cada linha representa um acidente. Esta é a principal base utilizada no estudo.
-
-- `acidentes2026.csv`  
-  Base agrupada por pessoa envolvida no acidente. É mantida como fonte complementar, mas não é utilizada como base principal da análise.
+- `datatran2025.csv` e `datatran2026.csv` são as bases agrupadas por ocorrência. Cada linha representa um acidente.
 
 ### INMET
 
@@ -51,13 +47,62 @@ RP2/
 ├── datasets/
 │   ├── raw/
 │   │   ├── prf/
+│   │   │   ├── datatran2025.csv
+│   │   │   └── datatran2026.csv
 │   │   └── inmet/
+│   │       ├── 2025/
+│   │       └── 2026/
 │   └── processed/
 ├── src/
 │   ├── 01_preparar_prf.py
 │   ├── 02_preparar_inmet.py
 │   ├── 03_integrar_bases.py
 │   ├── 04_analise_descritiva.py
-│   └── 05_regressao_ordinal.py
+│   ├── 05_regressao_ordinal.py
+│   ├── config.py
+│   ├── analises/
+│   ├── modelos/
+│   └── utils/
+├── executar_pipeline.py
 ├── README.md
 └── requirements.txt
+```
+
+## Execução local no Windows
+
+Os CSVs da PRF já estão no repositório. Extraia os CSVs brutos do INMET em
+`datasets/raw/inmet/2025/` e `datasets/raw/inmet/2026/`, mantendo os nomes
+originais dos arquivos.
+A validação usou 40 arquivos de estações de São Paulo por ano.
+Os arquivos de 2025 cobrem até 31/12/2025, e os de 2026, até 31/08/2026.
+
+Na raiz do repositório, use o PowerShell. O pipeline foi validado com Python 3.13.3.
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
+
+Para executar o pipeline completo na raiz do repositório, use o comando abaixo.
+O executor informa a etapa em andamento e para na primeira falha.
+
+```powershell
+python executar_pipeline.py
+```
+
+Para executar ou depurar uma etapa por vez, use os comandos abaixo na ordem indicada.
+
+```powershell
+python src\01_preparar_prf.py
+python src\02_preparar_inmet.py
+python src\03_integrar_bases.py
+python src\04_analise_descritiva.py
+python src\05_regressao_ordinal.py
+```
+
+Também é possível executar os comandos com `.\.venv\Scripts\python.exe` sem ativar o ambiente.
+As etapas de preparação e integração geram os CSVs intermediários em
+`datasets/processed/`, incluindo `base_integrada.csv`.
+A etapa 04 exibe a análise descritiva no console e a etapa 05 grava os CSVs de modelagem
+na mesma pasta.

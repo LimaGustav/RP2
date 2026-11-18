@@ -143,7 +143,7 @@ def processar_arquivo(arquivo) -> pd.DataFrame:
 
 
 def localizar_arquivos() -> list:
-    """Localiza os CSVs de São Paulo copiados pelo notebook."""
+    """Localiza os CSVs do INMET de São Paulo na pasta de dados brutos."""
     if not PASTA_INMET.exists():
         raise FileNotFoundError(
             f"Pasta do INMET não encontrada: {PASTA_INMET}"
