@@ -78,51 +78,6 @@ indicadores de chuva das duas fontes. O desfecho é a gravidade entre os acident
 registrados pela PRF. O estudo não estima o risco de ocorrência de acidentes em
 situações com ou sem chuva.
 
-\section{Fundamentos Teóricos}
-
-\subsection{Mensuração da precipitação e gravidade ordinal}
-
-A precipitação em milímetros representa uma quantidade acumulada durante
-um intervalo. Nas estações automáticas do INMET, o registro horário de
-precipitação total corresponde ao acumulado da hora que termina no horário
-de referência \cite{inmetglossario}. A estação mede em um ponto fixo, enquanto
-a condição meteorológica da PRF descreve o contexto registrado para cada
-ocorrência. A distância até a estação, a duração do intervalo e a variação
-local da chuva podem, portanto, levar a classificações diferentes.
-
-A classificação de gravidade da PRF distingue três níveis ordenados, de
-acidentes sem vítimas a acidentes com vítimas feridas e fatais. A ordem
-indica aumento de gravidade. As diferenças entre os níveis não precisam ser
-tratadas como intervalos iguais em uma escala numérica.
-
-\subsection{Regressão ordinal e interpretação}
-
-Na regressão logística ordinal de chances proporcionais \cite{mccullagh1980},
-uma mesma razão de chances (OR) descreve a associação da exposição nos
-dois cortes. O primeiro compara acidentes com vítimas, feridas ou fatais,
-a acidentes sem vítimas. O segundo compara acidentes fatais aos demais.
-Para precipitação contínua, a OR é interpretada por 1 mm adicional. Para
-chuva binária, ela compara a presença à ausência de chuva. Uma OR abaixo
-de 1 indica uma estimativa de menores chances cumulativas de maior
-gravidade, consideradas as covariáveis no modelo ajustado.
-
-O intervalo de confiança de 95\% (IC95\%) expressa a imprecisão da estimativa.
-Quando inclui 1, os dados são compatíveis com esse valor e com outras
-magnitudes de associação dentro do intervalo. A regressão multinomial
-estima contrastes separados para cada categoria em relação a uma de
-referência e dispensa uma OR cumulativa comum aos dois cortes.
-
-\subsection{Associação e concordância entre indicadores}
-
-A correlação de Pearson avalia se os dois indicadores tendem a variar juntos.
-Com dois indicadores codificados em 0 e 1, o coeficiente de Pearson é
-numericamente igual ao $\phi$ obtido pela tabela $2\times 2$. Esses
-coeficientes expressam a mesma associação. A concordância avalia em que
-medida os indicadores classificam os mesmos acidentes da mesma forma. O
-$\kappa$ de Cohen desconta a concordância esperada ao acaso dadas as
-proporções marginais \cite{cohen1960}. A concordância total e a concordância
-por classe ajudam a distinguir a ocorrência de acordo para chuva e para
-ausência de chuva.
 \section{Trabalhos Correlatos}
 
 A Tabela~\ref{tab:trabalhos_relacionados} sintetiza os principais estudos
@@ -242,11 +197,15 @@ precipitação vieram das séries horárias de estações automáticas do INMET
 localizadas no estado de São Paulo \cite{inmet2026}.
 
 A resposta foi a gravidade registrada pela PRF, ordenada em 0 (sem
-vítimas), 1 (com vítimas feridas) e 2 (com vítimas fatais). A exposição
-principal para a quantidade de precipitação foi o acumulado horário
-do INMET, em milímetros. Também foi avaliado um indicador binário
-de chuva, igual a 0 para 0 mm e a 1 para valores acima de 0 mm.
-Leituras ausentes não foram classificadas como 0 mm.
+vítimas), 1 (com vítimas feridas) e 2 (com vítimas fatais). Esses códigos
+indicam a ordem das categorias.
+
+A exposição principal foi o acumulado horário do INMET, em milímetros,
+referente à hora que termina no horário do registro \cite{inmetglossario}.
+Também foi avaliado um indicador binário de chuva, igual a 0 para 0 mm
+e a 1 para valores acima de 0 mm. Leituras ausentes não foram classificadas
+como 0 mm. A estação mede em um ponto fixo, enquanto a condição
+meteorológica da PRF descreve o contexto registrado para cada ocorrência.
 
 \subsection{Pareamento e critérios de seleção}
 
@@ -266,22 +225,29 @@ não garante que o acumulado na estação reproduza o do local do acidente.
 
 \subsection{Modelo principal e avaliação complementar da modelagem}
 
-A associação foi estimada por regressão logística ordinal. Para cada
-representação da precipitação, ajustou-se um modelo bruto, contendo
-apenas a exposição, e um modelo com fase do dia, tipo de pista, traçado
-da via, ano e mês. Como as contagens de mortos e feridos compõem a
-classificação da gravidade, elas ficaram fora dos preditores. São
-reportadas OR, IC95\% e valores de $p$, com 5\% como nível de referência.
+A associação foi estimada por regressão logística ordinal de chances
+proporcionais \cite{mccullagh1980}, com uma razão de chances (OR) comum
+a dois cortes de gravidade: com vítimas versus sem vítimas e fatais
+versus demais. Para cada exposição, estimou-se um modelo bruto, contendo
+apenas a exposição, e um modelo ajustado por fase do dia, tipo de pista,
+traçado da via, ano e mês. As contagens de mortos e feridos ficaram fora
+dos preditores por comporem a classificação da gravidade.
+
+A OR se refere às chances cumulativas de maior gravidade por 1 mm
+adicional ou pela presença de chuva em relação à ausência de chuva.
+São reportados intervalos de confiança de 95\% (IC95\%) e valores de
+$p$, com 5\% como nível de referência.
 
 Para a precipitação contínua, o diagnóstico exploratório de chances
 proporcionais usou dois modelos logísticos binários ajustados, um para
 cada corte de gravidade. Também se ajustou uma regressão multinomial
-complementar na mesma amostra e com as mesmas covariáveis, usando os acidentes sem
-vítimas como categoria de referência. Para descrever as perdas, ajustou-se
-uma regressão logística para a ausência de precipitação na base integrada,
-com gravidade, ano, mês, distância, condição meteorológica da PRF e
-estação do INMET. Estações com menos de 20 ocorrências foram agrupadas
-nesse diagnóstico.
+complementar na mesma amostra e com as mesmas covariáveis, com contrastes
+separados em relação aos acidentes sem vítimas.
+
+Para descrever as perdas, ajustou-se uma regressão logística para a
+ausência de precipitação na base integrada, com gravidade, ano, mês,
+distância, condição meteorológica da PRF e estação do INMET. Estações
+com menos de 20 ocorrências foram agrupadas nesse diagnóstico.
 
 \subsection{Sensibilidades do pareamento e comparação entre fontes}
 
@@ -309,14 +275,16 @@ Na comparação complementar, as categorias Chuva e Garoa/Chuvisco da PRF
 foram codificadas como 1. Céu Claro, Sol, Nublado, Vento e Nevoeiro/Neblina
 foram codificadas como 0, por não indicarem chuva explicitamente. Registros
 ignorados ou sem categoria mapeada foram tratados como ausentes.
-Usaram-se os pares válidos até 10, 20 e 30 km. Foram calculados Pearson/$\phi$,
-$\kappa$ de Cohen e concordância total e por classe. O valor de $p$ é nominal,
+Nos pares válidos até 10, 20 e 30 km, a associação entre os indicadores
+binários foi medida pela correlação de Pearson, equivalente ao $\phi$ da
+tabela $2\times 2$. Para a concordância, calcularam-se as proporções total
+e por classe e o $\kappa$ de Cohen, que desconta a concordância esperada
+pelas proporções marginais \cite{cohen1960}. O valor de $p$ é nominal,
 do teste qui-quadrado de independência sem correção para agrupamento.
 O IC95\% exploratório de $\phi$ foi calculado com 5.000 reamostragens por
 estação. Por fim, os modelos ordinais com chuva binária da PRF e do INMET
 foram comparados na mesma amostra a até 30 km.
 
-\clearpage
 \section{Resultados e Discussão}
 
 \subsection{Cobertura, perdas e composição da amostra}
